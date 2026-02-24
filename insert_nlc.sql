@@ -1,0 +1,75 @@
+
+-- Nurse Licensure Compact (NLC) States Seed
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS nlc_compact_states (
+  state_code TEXT PRIMARY KEY,
+  state_name TEXT,
+  compact_member BOOLEAN,
+  effective_date DATE,
+  walk_through BOOLEAN,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO nlc_compact_states (state_code, state_name, compact_member, effective_date, walk_through, updated_at) VALUES
+('AL', 'Alabama', true, '2020-01-01', false, now()),
+('AK', 'Alaska', false, NULL, false, now()),
+('AZ', 'Arizona', true, '2002-07-01', true, now()),
+('AR', 'Arkansas', true, '2000-07-01', false, now()),
+('CA', 'California', false, NULL, false, now()),
+('CO', 'Colorado', true, '2007-10-01', true, now()),
+('CT', 'Connecticut', false, NULL, false, now()),
+('DE', 'Delaware', true, '2000-07-01', true, now()),
+('FL', 'Florida', true, '2018-01-19', false, now()),
+('GA', 'Georgia', true, '2018-01-19', false, now()),
+('HI', 'Hawaii', false, NULL, false, now()),
+('ID', 'Idaho', true, '2001-07-01', true, now()),
+('IL', 'Illinois', false, NULL, false, now()),
+('IN', 'Indiana', true, '2020-07-01', false, now()),
+('IA', 'Iowa', true, '2000-07-01', false, now()),
+('KS', 'Kansas', true, '2019-07-01', false, now()),
+('KY', 'Kentucky', true, '2007-06-01', false, now()),
+('LA', 'Louisiana', true, '2019-07-01', true, now()),
+('ME', 'Maine', true, '2001-07-01', false, now()),
+('MD', 'Maryland', true, '1999-07-01', true, now()),
+('MA', 'Massachusetts', false, NULL, false, now()),
+('MI', 'Michigan', false, NULL, false, now()),
+('MN', 'Minnesota', false, NULL, false, now()),
+('MS', 'Mississippi', true, '2001-07-01', false, now()),
+('MO', 'Missouri', true, '2010-06-01', true, now()),
+('MT', 'Montana', true, '2015-10-01', false, now()),
+('NE', 'Nebraska', true, '2001-01-01', false, now()),
+('NV', 'Nevada', false, NULL, false, now()),
+('NH', 'New Hampshire', true, '2006-01-01', false, now()),
+('NJ', 'New Jersey', true, '2021-11-15', false, now()),
+('NM', 'New Mexico', true, '2004-01-01', false, now()),
+('NY', 'New York', false, NULL, false, now()),
+('NC', 'North Carolina', true, '2000-07-01', false, now()),
+('ND', 'North Dakota', true, '2004-01-01', false, now()),
+('OH', 'Ohio', true, '2023-01-01', false, now()),
+('OK', 'Oklahoma', true, '2018-01-19', false, now()),
+('OR', 'Oregon', false, NULL, false, now()),
+('PA', 'Pennsylvania', true, '2023-09-05', false, now()),
+('RI', 'Rhode Island', true, '2024-01-01', false, now()),
+('SC', 'South Carolina', true, '2006-02-01', true, now()),
+('SD', 'South Dakota', true, '2001-01-01', false, now()),
+('TN', 'Tennessee', true, '2003-07-01', false, now()),
+('TX', 'Texas', true, '2000-01-01', false, now()),
+('UT', 'Utah', true, '2000-01-01', false, now()),
+('VT', 'Vermont', true, '2022-02-01', false, now()),
+('VA', 'Virginia', true, '2005-01-01', false, now()),
+('WA', 'Washington', true, '2023-07-24', false, now()),
+('WV', 'West Virginia', true, '2018-01-19', false, now()),
+('WI', 'Wisconsin', true, '2000-01-01', false, now()),
+('WY', 'Wyoming', true, '2018-01-19', false, now()),
+('DC', 'District of Columbia', false, NULL, false, now()),
+('GU', 'Guam', true, '2022-01-01', false, now()),
+('VI', 'Virgin Islands', true, '2022-01-01', false, now())
+ON CONFLICT (state_code) DO UPDATE SET
+  state_name = EXCLUDED.state_name,
+  compact_member = EXCLUDED.compact_member,
+  effective_date = EXCLUDED.effective_date,
+  walk_through = EXCLUDED.walk_through,
+  updated_at = EXCLUDED.updated_at;
+
+COMMIT;
