@@ -1,80 +1,185 @@
-// ━━━ GSA LOOKUP FUNCTIONS ━━━
-// Queries Supabase for GSA rates, ZIP crosswalk, and HUD FMR data.
+// ━━━ GSA / HUD LOOKUP FUNCTIONS ━━━
+// Queries Supabase for GSA per diem rates via ZIP → destination_id join path.
+// Table: gsa_zip_mappings (40,426 rows) → gsa_rates (297 rows) via destination_id.
+// HUD FMR: matched by state + county name (fuzzy, " County" suffix in HUD data).
 
 import { supabase } from "./supabase";
 import type { LocationData, GsaData } from "@/types";
-import { deriveGsaTotals } from "./financials";
 
 /**
- * Look up location from ZIP via zip_county_crosswalk.
+ * Compute the GSA fiscal year from a date.
+ * GSA fiscal year starts October 1. FY2026 covers Oct 1 2025 → Sep 30 2026.
+ * If current month >= October, fiscal year = calendar year + 1.
  */
-export async function lookupLocation(zip: string): Promise<LocationData | null> {
+export function getGsaFiscalYear(date: Date = new Date()): number {
+    const month = date.getMonth(); // 0-indexed: 0=Jan, 9=Oct
+    const year = date.getFullYear();
+    return month >= 9 ? year + 1 : year;
+}
+
+/**
+ * Get the current month's lodging column name.
+ * GSA rates store seasonal lodging as lodging_jan, lodging_feb, etc.
+ * Falls back to max_lodging if the month column is null.
+ */
+function getLodgingColumnForMonth(date: Date = new Date()): string {
+    const monthColumns: Record<number, string> = {
+        0: "lodging_jan", 1: "lodging_feb", 2: "lodging_mar",
+        3: "lodging_apr", 4: "lodging_may", 5: "lodging_jun",
+        6: "lodging_jul", 7: "lodging_aug", 8: "lodging_sep",
+        9: "lodging_oct", 10: "lodging_nov", 11: "lodging_dec",
+    };
+    return monthColumns[date.getMonth()];
+}
+
+/**
+ * Look up location from ZIP via gsa_zip_mappings.
+ * Returns destination_id for joining to gsa_rates.
+ */
+export async function lookupLocation(
+    zip: string
+): Promise<(LocationData & { destination_id: string }) | null> {
+    const fiscalYear = getGsaFiscalYear();
+
     const { data, error } = await supabase
-        .from("zip_county_crosswalk")
-        .select("zip, county, state, city, latitude, longitude")
+        .from("gsa_zip_mappings")
+        .select("zip, destination_id, state, city, county, fiscal_year")
         .eq("zip", zip)
+        .eq("fiscal_year", fiscalYear)
         .single();
 
-    if (error || !data) return null;
+    if (error || !data) {
+        // Fallback: try without fiscal year filter (grab any mapping for this ZIP)
+        const { data: fallback, error: fbError } = await supabase
+            .from("gsa_zip_mappings")
+            .select("zip, destination_id, state, city, county, fiscal_year")
+            .eq("zip", zip)
+            .order("fiscal_year", { ascending: false })
+            .limit(1)
+            .single();
+
+        if (fbError || !fallback) return null;
+
+        return {
+            zip: fallback.zip,
+            city: fallback.city || "",
+            county: fallback.county || "",
+            state: fallback.state,
+            destination_id: fallback.destination_id,
+        };
+    }
 
     return {
         zip: data.zip,
-        city: data.city ?? data.county,
-        county: data.county,
+        city: data.city || "",
+        county: data.county || "",
         state: data.state,
-        latitude: data.latitude ?? undefined,
-        longitude: data.longitude ?? undefined,
+        destination_id: data.destination_id,
     };
 }
 
 /**
- * Look up GSA per diem rates for a county/state and fiscal year.
- * Uses the current month's lodging rate for accuracy.
+ * Look up GSA per diem rates via destination_id.
+ * This is the correct join path — NOT county name matching.
+ * gsa_rates.county contains multi-county strings like "Essex / Bergen / Hudson / Passaic".
+ * The destination_id is the canonical link between ZIP mappings and rate tables.
  */
 export async function lookupGsaRates(
-    state: string,
-    county: string,
-    fiscalYear: number = 2026
+    destinationId: string,
+    fiscalYear?: number
 ): Promise<GsaData | null> {
+    const fy = fiscalYear ?? getGsaFiscalYear();
+    const now = new Date();
+    const monthCol = getLodgingColumnForMonth(now);
+
     const { data, error } = await supabase
         .from("gsa_rates")
         .select("*")
-        .eq("fiscal_year", fiscalYear)
-        .eq("state", state.toUpperCase())
-        .ilike("county", county)
+        .eq("destination_id", destinationId)
+        .eq("fiscal_year", fy)
         .single();
 
     if (error || !data) return null;
 
-    // Get the current month's lodging rate
-    const monthMap: Record<number, string> = {
-        0: "jan", 1: "feb", 2: "mar", 3: "apr", 4: "may", 5: "jun",
-        6: "jul", 7: "aug", 8: "sep", 9: "oct", 10: "nov", 11: "dec_",
-    };
-    const currentMonth = new Date().getMonth();
-    const monthKey = monthMap[currentMonth];
-    const lodgingDaily = data[monthKey] ?? data.max_lodging ?? 0;
-    const mealsDaily = data.meals_daily ?? 0;
+    // Use current month's seasonal lodging rate, falling back to max_lodging
+    const rawData = data as Record<string, unknown>;
+    const lodgingDaily: number = (rawData[monthCol] as number) ?? (rawData.max_lodging as number) ?? 0;
+    const mealsDaily: number = (rawData.meals_daily as number) ?? 0;
 
-    return deriveGsaTotals(lodgingDaily, mealsDaily, fiscalYear);
+    // Use pre-computed weekly_max from DB if available, otherwise derive
+    const weeklyMax: number = (rawData.weekly_max as number) ?? (lodgingDaily + mealsDaily) * 7;
+    const monthlyMax: number = (rawData.monthly_total as number) ?? (lodgingDaily + mealsDaily) * 30;
+
+    return {
+        fiscal_year: fy,
+        lodging_daily: lodgingDaily,
+        meals_daily: mealsDaily,
+        weekly_max: weeklyMax,
+        monthly_max: monthlyMax,
+        city: (rawData.city as string) ?? "",
+        county: (rawData.county as string) ?? "",
+    };
 }
 
 /**
- * Look up HUD Fair Market Rent for a ZIP.
+ * Look up HUD Fair Market Rent by state + county.
+ * HUD data uses "County" suffix (e.g., "Maricopa County").
+ * GSA rates use multi-county strings — we parse the first county and try to match.
+ * Falls back to state average if no exact match.
  */
 export async function lookupHudFmr(
-    zip: string,
-    fiscalYear: number = 2025
-): Promise<{ fmr_1br: number } | null> {
-    const { data, error } = await supabase
+    state: string,
+    gsaCounty: string
+): Promise<{ fmr_1br: number; county: string } | null> {
+    // Strategy 1: Parse first county from GSA multi-county string, try exact match
+    // GSA format: "Essex / Bergen / Hudson / Passaic" or "Maricopa"
+    const firstCounty = gsaCounty.split("/")[0].trim();
+
+    if (firstCounty) {
+        const { data, error } = await supabase
+            .from("hud_fmr")
+            .select("fmr_1br, county")
+            .eq("state", state.toUpperCase())
+            .ilike("county", `${firstCounty}%`)
+            .limit(1)
+            .single();
+
+        if (!error && data && data.fmr_1br) {
+            return { fmr_1br: data.fmr_1br, county: data.county };
+        }
+    }
+
+    // Strategy 2: Try matching any county in the multi-county string
+    const counties = gsaCounty.split("/").map((c) => c.trim()).filter(Boolean);
+    for (const county of counties.slice(1)) {
+        const { data, error } = await supabase
+            .from("hud_fmr")
+            .select("fmr_1br, county")
+            .eq("state", state.toUpperCase())
+            .ilike("county", `${county}%`)
+            .limit(1)
+            .single();
+
+        if (!error && data && data.fmr_1br) {
+            return { fmr_1br: data.fmr_1br, county: data.county };
+        }
+    }
+
+    // Strategy 3: State-level average (if multiple metros seeded for this state)
+    const { data: stateAvg, error: stateError } = await supabase
         .from("hud_fmr")
         .select("fmr_1br")
-        .eq("zip", zip)
-        .eq("fiscal_year", fiscalYear)
-        .single();
+        .eq("state", state.toUpperCase())
+        .limit(5);
 
-    if (error || !data) return null;
-    return { fmr_1br: data.fmr_1br ?? 0 };
+    if (!stateError && stateAvg && stateAvg.length > 0) {
+        const avg = Math.round(
+            stateAvg.reduce((sum, r) => sum + (r.fmr_1br ?? 0), 0) / stateAvg.length
+        );
+        return { fmr_1br: avg, county: `${state} average` };
+    }
+
+    return null;
 }
 
 /**

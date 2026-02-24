@@ -1,6 +1,7 @@
 // ━━━ FINANCIAL CALCULATIONS ━━━
 // All per diem math lives here. Every function is pure — no side effects.
-// Uses MEDIAN as the central tendency for all derived display values.
+// Tax estimate uses a conservative 20% flat rate as a baseline approximation.
+// This is labeled as an ESTIMATE throughout the UI — not a tax calculation.
 
 import type {
     PayBreakdown,
@@ -10,19 +11,28 @@ import type {
     ContractProjection,
 } from "@/types";
 
-const TAX_RATE = 0.20; // Flat estimate for travel nurse taxable income
+/**
+ * Conservative flat tax estimate for travel nurse taxable income.
+ * This accounts for federal income tax on the taxable portion only.
+ * Travel nurse stipends are tax-free under IRS guidelines when maintaining a tax home.
+ * The actual effective rate varies by filing status, deductions, and state.
+ * Source: IRS Publication 463 (Travel, Gift, and Car Expenses) — per diem exclusion rules.
+ */
+const TAX_RATE_ESTIMATE = 0.20;
 const CONTRACT_WEEKS = 13;
 
 /**
  * Calculate GSA weekly/monthly maximums from daily rates.
+ * Used when rates need to be derived from raw daily figures.
+ * Note: gsa_rates table has pre-computed weekly_max and monthly_total columns.
  */
 export function deriveGsaTotals(
     lodgingDaily: number,
     mealsDaily: number,
     fiscalYear: number
 ): GsaData {
-    const weeklyMax = lodgingDaily * 7 + mealsDaily * 7;
-    const monthlyMax = lodgingDaily * 30 + mealsDaily * 30;
+    const weeklyMax = (lodgingDaily + mealsDaily) * 7;
+    const monthlyMax = (lodgingDaily + mealsDaily) * 30;
     return {
         fiscal_year: fiscalYear,
         lodging_daily: lodgingDaily,
@@ -34,6 +44,14 @@ export function deriveGsaTotals(
 
 /**
  * Full pay breakdown from weekly gross, GSA ceiling, and hours.
+ *
+ * Core logic:
+ * - Tax-free stipend = min(GSA weekly max, weekly gross)
+ *   → You can't receive more tax-free than the GSA ceiling
+ *   → If gross < GSA max, the entire check is tax-free
+ * - Taxable portion = gross - stipend (only the overage is taxed)
+ * - Tax estimate = taxable × 20% flat estimate
+ * - Net = gross - tax estimate
  */
 export function derivePayBreakdown(
     weeklyGross: number,
@@ -43,7 +61,7 @@ export function derivePayBreakdown(
     const stipendWeekly = Math.min(gsaWeeklyMax, weeklyGross);
     const taxableWeekly = Math.max(weeklyGross - gsaWeeklyMax, 0);
     const taxableHourly = hours > 0 ? Math.round((taxableWeekly / hours) * 100) / 100 : 0;
-    const taxEstimate = Math.round(taxableWeekly * TAX_RATE * 100) / 100;
+    const taxEstimate = Math.round(taxableWeekly * TAX_RATE_ESTIMATE * 100) / 100;
     const netWeekly = Math.round((weeklyGross - taxEstimate) * 100) / 100;
 
     return {
@@ -59,6 +77,8 @@ export function derivePayBreakdown(
 
 /**
  * Housing surplus: how much tax-free money remains after paying rent.
+ * Positive = your stipend covers rent + leaves surplus (money in pocket).
+ * Negative = rent exceeds stipend (you're subsidizing housing from taxable pay).
  */
 export function deriveHousingData(
     gsaLodgingDaily: number,
@@ -75,6 +95,8 @@ export function deriveHousingData(
 
 /**
  * Negotiation bands at 70%, 80%, 95%, 100% of GSA max.
+ * Shows where your agency's stipend falls relative to the federal ceiling.
+ * ≥95% = fair deal · 80-94% = negotiable · <80% = they're keeping a large cut.
  */
 export function deriveNegotiationBands(
     gsaWeeklyMax: number,
@@ -94,6 +116,8 @@ export function deriveNegotiationBands(
 
 /**
  * 13-week contract projection.
+ * Standard travel nursing contract length.
+ * All figures are estimates based on the weekly breakdown × weeks.
  */
 export function deriveContractProjection(
     breakdown: PayBreakdown,
@@ -112,6 +136,7 @@ export function deriveContractProjection(
 
 /**
  * All-in-one: compute full calculator result from raw inputs.
+ * This is the single entry point the API route calls.
  */
 export function deriveFinancials(
     weeklyGross: number,
