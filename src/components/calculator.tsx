@@ -1314,7 +1314,7 @@ export default function Calculator() {
                   color: T.moneyPositive,
                 }}
               >
-                ${r.netAfterInsuranceWeekly.toLocaleString()}/wk
+                ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}/wk
               </div>
             </div>
           </div>
@@ -1435,9 +1435,8 @@ export default function Calculator() {
                     marginTop: "4px",
                   }}
                 >
-                  Federal per diem limit: ${r.gsaWeeklyMax.toLocaleString()}/wk
-                  · Target (90%): $
-                  {Math.round(r.targetStipendWeekly).toLocaleString()}/wk
+                  Federal per diem limit: $
+                  {Math.round(r.gsaWeeklyMax).toLocaleString()}/wk
                 </div>
               </div>
               <div>
@@ -1475,51 +1474,55 @@ export default function Calculator() {
                 />
               </div>
               <div style={{ height: "1px", background: T.borderSubtle }} />
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    color: T.textSecondary,
-                  }}
-                >
-                  Estimated take-home
-                </span>
-                <span
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "14px",
-                    fontWeight: 900,
-                  }}
-                >
-                  ${r.netWeekly.toLocaleString()}
-                </span>
-              </div>
-              {r.insuranceWeeklyMid > 0 && (
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
-                  <span
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "13px",
-                      color: T.moneyNegative,
-                    }}
+              {r.insuranceWeeklyMid > 0 ? (
+                <>
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
                   >
-                    Insurance ({insLabel})
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: f.mono,
-                      fontSize: "14px",
-                      fontWeight: 900,
-                      color: T.moneyNegative,
-                    }}
+                    <span
+                      style={{
+                        fontFamily: f.sans,
+                        fontSize: "13px",
+                        color: T.textSecondary,
+                      }}
+                    >
+                      Gross before insurance
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: f.mono,
+                        fontSize: "14px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      ${Math.round(r.netWeekly).toLocaleString()}
+                    </span>
+                  </div>
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
                   >
-                    −${Math.round(r.insuranceWeeklyMid).toLocaleString()}/wk
-                  </span>
-                </div>
-              )}
+                    <span
+                      style={{
+                        fontFamily: f.sans,
+                        fontSize: "13px",
+                        color: T.moneyNegative,
+                      }}
+                    >
+                      Insurance ({insLabel})
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: f.mono,
+                        fontSize: "14px",
+                        fontWeight: 900,
+                        color: T.moneyNegative,
+                      }}
+                    >
+                      −${Math.round(r.insuranceWeeklyMid).toLocaleString()}/wk
+                    </span>
+                  </div>
+                </>
+              ) : null}
               <div
                 style={{
                   display: "flex",
@@ -1528,6 +1531,7 @@ export default function Calculator() {
                   background: T.moneyPositiveBg,
                   borderRadius: "8px",
                   border: `1px solid ${T.moneyPositive}20`,
+                  marginTop: r.insuranceWeeklyMid > 0 ? "8px" : "0",
                 }}
               >
                 <span
@@ -1538,7 +1542,9 @@ export default function Calculator() {
                     color: T.moneyPositive,
                   }}
                 >
-                  Net after insurance
+                  {r.insuranceWeeklyMid > 0
+                    ? "Net after insurance"
+                    : "Estimated take-home"}
                 </span>
                 <span
                   style={{
@@ -1548,7 +1554,7 @@ export default function Calculator() {
                     color: T.moneyPositive,
                   }}
                 >
-                  ${r.netAfterInsuranceWeekly.toLocaleString()}/wk
+                  ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}/wk
                 </span>
               </div>
             </div>
@@ -1557,10 +1563,7 @@ export default function Calculator() {
                 fontFamily: f.sans,
                 fontSize: "10px",
                 color: T.textTertiary,
-                marginTop: "10px",
-                padding: "6px 8px",
-                background: T.surfaceRaised,
-                borderRadius: "4px",
+                marginTop: "16px",
                 lineHeight: 1.5,
               }}
             >
@@ -1577,7 +1580,7 @@ export default function Calculator() {
                 marginBottom: "12px",
               }}
             >
-              <MicroLabel>Housing vs stipend</MicroLabel>
+              <MicroLabel>Housing vs. Stipend</MicroLabel>
               <span
                 style={{
                   fontFamily: f.sans,
@@ -1648,10 +1651,10 @@ export default function Calculator() {
                 }}
               >
                 Stipend covers{" "}
-                {Math.round(
-                  (r.stipendMonthlyEst / Math.max(r.housing1br, 1)) * 100,
-                )}
-                %
+                {r.stipendMonthlyEst >= r.housing1br * 2
+                  ? `~${Math.round(r.stipendMonthlyEst / Math.max(r.housing1br, 1))}×`
+                  : `${Math.round((r.stipendMonthlyEst / Math.max(r.housing1br, 1)) * 100)}% of`}{" "}
+                monthly rent
               </span>
             </div>
           </Card>

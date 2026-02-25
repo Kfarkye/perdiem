@@ -1400,7 +1400,11 @@ export default function ConstructionCalculator() {
                     color: T.moneyPositive,
                   }}
                 >
-                  $${r.derived.net_after_insurance_weekly.toLocaleString()}/wk
+                  $$
+                  {Math.round(
+                    r.derived.net_after_insurance_weekly,
+                  ).toLocaleString()}
+                  /wk
                 </span>
               </div>
             </div>
@@ -1431,7 +1435,7 @@ export default function ConstructionCalculator() {
                   marginBottom: "12px",
                 }}
               >
-                <MicroLabel>Housing vs per diem</MicroLabel>
+                <MicroLabel>Housing vs. Stipend</MicroLabel>
                 <span
                   style={{
                     fontFamily: f.sans,
@@ -1502,12 +1506,10 @@ export default function ConstructionCalculator() {
                   }}
                 >
                   Stipend covers{" "}
-                  {Math.round(
-                    (r.housing.stipend_monthly_est /
-                      Math.max(r.housing.hud_fmr_1br, 1)) *
-                      100,
-                  )}
-                  %
+                  {r.housing.stipend_monthly_est >= r.housing.hud_fmr_1br * 2
+                    ? `~${Math.round(r.housing.stipend_monthly_est / Math.max(r.housing.hud_fmr_1br, 1))}×`
+                    : `${Math.round((r.housing.stipend_monthly_est / Math.max(r.housing.hud_fmr_1br, 1)) * 100)}% of`}{" "}
+                  monthly rent
                 </span>
               </div>
             </Card>
