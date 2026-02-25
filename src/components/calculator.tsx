@@ -182,7 +182,7 @@ function buildPrefillUrl(p: {
   sp.set("zip", p.zip);
   if (p.gross && p.gross > 0) sp.set("gross", String(p.gross));
   else sp.delete("gross");
-  if (p.specialty && p.specialty !== "RN") sp.set("specialty", p.specialty);
+  if (p.specialty) sp.set("specialty", p.specialty);
   else sp.delete("specialty");
   if (p.hours && p.hours !== 36) sp.set("hours", String(p.hours));
   else sp.delete("hours");
@@ -1651,8 +1651,8 @@ export default function Calculator() {
               >
                 Source: {r.insuranceSourceType}.
                 {r.insuranceWeeklyMin !== null &&
-                r.insuranceWeeklyMax !== null &&
-                r.insuranceWeeklyMin !== r.insuranceWeeklyMax
+                  r.insuranceWeeklyMax !== null &&
+                  r.insuranceWeeklyMin !== r.insuranceWeeklyMax
                   ? ` Range: $${r.insuranceWeeklyMin}–$${r.insuranceWeeklyMax}/wk.`
                   : ""}{" "}
                 Override wins when provided.

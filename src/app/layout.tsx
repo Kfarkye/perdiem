@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { T } from "@/lib/theme";
 import "./globals.css";
-import { FONT_URL } from "@/lib/theme";
+
+// 1. Initialize the font at build time
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "PerDiem.fyi — Know Your Rate Before You Sign",
@@ -34,17 +41,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link href={FONT_URL} rel="stylesheet" />
-      </head>
-      <body>{children}</body>
+    // 2. Apply the font class to the HTML tag
+    <html lang="en" className={inter.className}>
+      {/* 3. Apply base theme tokens to the body */}
+      <body
+        style={{
+          backgroundColor: T.bg,
+          color: T.text,
+          margin: 0,
+          minHeight: "100vh",
+          // Premium typography tweaks to make Inter look razor-sharp on Mac/iOS
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+        }}
+      >
+        {children}
+      </body>
     </html>
   );
 }

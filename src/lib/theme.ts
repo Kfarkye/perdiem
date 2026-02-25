@@ -34,6 +34,3 @@ export const FONTS = {
   sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   mono: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
 } as const;
-
-export const FONT_URL =
-  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap";
