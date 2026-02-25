@@ -148,6 +148,7 @@ export interface PayBreakdown {
 
 export interface HousingData {
     hud_fmr_1br: number;
+    stipend_monthly_est: number;
     stipend_surplus_monthly: number;
 }
 
@@ -155,6 +156,7 @@ export interface NegotiationBandData {
     pct_70: number;
     pct_80: number;
     pct_95: number;
+    pct_100: number;
     your_stipend: number;
     pct_of_max: number;
 }

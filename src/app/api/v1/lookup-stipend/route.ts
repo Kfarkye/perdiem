@@ -1,20 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { lookupLocation, lookupGsaRates, lookupHudFmr, getGsaFiscalYear } from "@/lib/gsa";
-import { deriveFinancials } from "@/lib/financials";
+import { deriveFinancials, getMinTaxableHourly } from "@/lib/financials";
 import { createServiceClient } from "@/lib/supabase";
 
-// ━━━ INPUT VALIDATION SCHEMA ━━━
+// ━━━ INPUT VALIDATION ━━━
 const LookupStipendSchema = z.object({
-    zip: z
-        .string()
-        .regex(/^\d{5}$/, "ZIP must be exactly 5 digits"),
-    gross_weekly: z
-        .coerce.number()
+    zip: z.string().regex(/^\d{5}$/, "ZIP must be exactly 5 digits"),
+    gross_weekly: z.coerce
+        .number()
         .min(200, "Gross weekly must be at least $200")
         .max(15000, "Gross weekly cannot exceed $15,000"),
-    hours: z
-        .coerce.number()
+    hours: z.coerce
+        .number()
         .min(8, "Hours must be at least 8")
         .max(80, "Hours cannot exceed 80")
         .default(36),
@@ -27,14 +25,13 @@ const LookupStipendSchema = z.object({
         .max(100, "Agency name must be under 100 characters")
         .optional()
         .nullable(),
+    ingest: z.boolean().optional().default(true),
 });
 
-// ━━━ SIMPLE IN-MEMORY RATE LIMITER ━━━
-// Serverless-friendly: resets on cold start, but catches rapid abuse within a single instance.
-// For production at scale, use Vercel KV or Upstash Redis.
+// ━━━ RATE LIMIT ━━━
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 20; // 20 requests per minute per IP
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 20;
 
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
@@ -46,14 +43,23 @@ function checkRateLimit(ip: string): boolean {
     }
 
     if (entry.count >= RATE_LIMIT_MAX) return false;
-
     entry.count++;
     return true;
 }
 
+function clamp(n: number, min: number, max: number) {
+    return Math.min(Math.max(n, min), max);
+}
+
+function offerVerdict(pct: number) {
+    if (pct >= 95) return { label: "Top", band: "95–100%" };
+    if (pct >= 85) return { label: "Typical", band: "85–95%" };
+    if (pct >= 80) return { label: "Below Avg", band: "80–85%" };
+    return { label: "Low", band: "<80%" };
+}
+
 export async function POST(req: Request) {
     try {
-        // ━━━ Rate Limit Check ━━━
         const forwarded = req.headers.get("x-forwarded-for");
         const ip = forwarded?.split(",")[0]?.trim() ?? "unknown";
 
@@ -64,15 +70,11 @@ export async function POST(req: Request) {
             );
         }
 
-        // ━━━ Parse & Validate Input ━━━
         let body: unknown;
         try {
             body = await req.json();
         } catch {
-            return NextResponse.json(
-                { error: "Invalid JSON body" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
         }
 
         const parsed = LookupStipendSchema.safeParse(body);
@@ -90,9 +92,9 @@ export async function POST(req: Request) {
             );
         }
 
-        const { zip, gross_weekly, hours, specialty, agency_name } = parsed.data;
+        const { zip, gross_weekly, hours, specialty, agency_name, ingest } = parsed.data;
 
-        // ━━━ 1. Resolve Location via ZIP → gsa_zip_mappings ━━━
+        // 1) ZIP → destination_id
         const location = await lookupLocation(zip);
         if (!location) {
             return NextResponse.json(
@@ -101,34 +103,39 @@ export async function POST(req: Request) {
             );
         }
 
-        // ━━━ 2. Resolve GSA Rates via destination_id → gsa_rates ━━━
+        // 2) destination_id → gsa_rates
         const fiscalYear = getGsaFiscalYear();
         const gsa = await lookupGsaRates(location.destination_id, fiscalYear);
         if (!gsa) {
             return NextResponse.json(
-                {
-                    error: `GSA rates not found for destination ${location.destination_id} (FY${fiscalYear}). Data may not be seeded for this fiscal year.`,
-                },
+                { error: `GSA rates not found for destination ${location.destination_id} (FY${fiscalYear}).` },
                 { status: 404 }
             );
         }
 
-        // ━━━ 3. Resolve HUD Fair Market Rents (fuzzy county match) ━━━
+        // 3) HUD
         const hud = await lookupHudFmr(location.state, gsa.county ?? "");
-        const rent1Br = hud?.fmr_1br ?? 1800; // National median fallback
+        const rent1Br = hud?.fmr_1br ?? 1800;
 
-        // ━━━ 4. Derive All Financials ━━━
+        // 4) Financials
         const financials = deriveFinancials(
             gross_weekly,
             hours,
             gsa.lodging_daily,
             gsa.meals_daily,
             gsa.fiscal_year,
-            rent1Br
+            rent1Br,
+            specialty
         );
 
-        // ━━━ 5. Fire-and-Forget: Anonymous Pay Report Ingestion ━━━
-        // Uses service client to bypass RLS. No PII stored.
+        const pct = clamp(financials.negotiation.pct_of_max ?? 0, 0, 200);
+        const verdict = offerVerdict(pct);
+
+        const targetPct = 90;
+        const targetStipend = Math.round((gsa.weekly_max * (targetPct / 100)) * 100) / 100;
+        const deltaTo90 = Math.round((targetStipend - financials.breakdown.stipend_weekly) * 100) / 100;
+
+        // 5) Fire-and-forget ingestion (OFF for preview calls)
         const ingestReport = async () => {
             try {
                 const serviceClient = createServiceClient();
@@ -143,16 +150,19 @@ export async function POST(req: Request) {
                     agency_name: agency_name || null,
                     stipend_weekly: financials.breakdown.stipend_weekly,
                     taxable_hourly: financials.breakdown.taxable_hourly,
+                    contract_length_weeks: 13,
+                    is_local: false,
                     source: "calculator",
+                    session_id: null,
                     ip_hash: ip !== "unknown" ? await hashIP(ip) : null,
                 });
             } catch (e) {
                 console.error("[pay_reports] Ingestion failed:", e);
             }
         };
-        void ingestReport();
 
-        // ━━━ 6. Return Result ━━━
+        if (ingest) void ingestReport();
+
         return NextResponse.json({
             success: true,
             data: {
@@ -175,13 +185,22 @@ export async function POST(req: Request) {
                 contract_13wk: financials.contract_13wk,
                 metadata: {
                     gsa_fiscal_year: gsa.fiscal_year,
-                    hud_rent_source: hud ? `HUD FY2025 · ${hud.county}` : "National Median Estimate",
-                    tax_method: "Flat 20% estimate on taxable portion only",
+                    hud_rent_source: hud ? `HUD · ${hud.county}` : "National Median Estimate",
+                    tax_method: `Flat 20% estimate on taxable portion (min $${getMinTaxableHourly(specialty)}/hr taxable base)`,
+                    offer_verdict: {
+                        stipend_pct_of_gsa: pct,
+                        label: verdict.label,
+                        typical_band: verdict.band,
+                        typical_target_pct: targetPct,
+                        delta_to_typical_weekly: deltaTo90,
+                        target_stipend_weekly: targetStipend,
+                    },
                     assumptions: [
-                        "Tax-free stipend capped at GSA per diem ceiling (IRS Pub 463)",
+                        `Taxable base rate: $${getMinTaxableHourly(specialty)}/hr minimum (site floor for ${specialty})`,
+                        "Tax-free stipend = gross minus taxable wages, capped at GSA ceiling",
                         "Tax estimate is ~20% flat on taxable wages — not a tax calculation",
                         `HUD FMR 1BR: $${rent1Br}/mo — ${hud ? "county-level data" : "national fallback"}`,
-                        "Contract projection assumes 13 weeks standard",
+                        "Contract projection assumes 13 weeks",
                     ],
                 },
             },
@@ -195,20 +214,18 @@ export async function POST(req: Request) {
     }
 }
 
-/**
- * One-way hash of IP address for deduplication without storing PII.
- * Uses Web Crypto API (available in Edge Runtime and Node.js 18+).
- */
 async function hashIP(ip: string): Promise<string> {
     const salt = process.env.IP_HASH_SALT ?? "perdiem-fyi-2026";
     const encoder = new TextEncoder();
     const data = encoder.encode(`${salt}:${ip}`);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+    return hashArray
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .slice(0, 16);
 }
 
-// ━━━ CORS Preflight Handler ━━━
 export async function OPTIONS() {
     return new NextResponse(null, {
         status: 204,
