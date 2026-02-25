@@ -3,6 +3,7 @@ import { z } from "zod";
 import { lookupLocation, lookupGsaRates, lookupHudFmr, getGsaFiscalYear } from "@/lib/gsa";
 import { deriveFinancials, getMinTaxableHourly } from "@/lib/financials";
 import { createServiceClient } from "@/lib/supabase";
+import { estimateInsuranceWeekly, type InsurancePlan } from "@/lib/insurance";
 
 // ━━━ INPUT VALIDATION ━━━
 const LookupStipendSchema = z.object({
@@ -16,16 +17,14 @@ const LookupStipendSchema = z.object({
         .min(8, "Hours must be at least 8")
         .max(80, "Hours cannot exceed 80")
         .default(36),
-    specialty: z
-        .string()
-        .max(50, "Specialty must be under 50 characters")
-        .default("RN"),
-    agency_name: z
-        .string()
-        .max(100, "Agency name must be under 100 characters")
-        .optional()
-        .nullable(),
+    specialty: z.string().max(50).default("RN"),
+    agency_name: z.string().max(100).optional().nullable(),
     ingest: z.boolean().optional().default(true),
+    insurance_plan: z
+        .enum(["none", "single", "family", "aca", "private"])
+        .optional()
+        .default("none"),
+    insurance_weekly_override: z.coerce.number().min(0).max(2000).optional().nullable(),
 });
 
 // ━━━ RATE LIMIT ━━━
@@ -36,12 +35,10 @@ const RATE_LIMIT_MAX = 20;
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
     const entry = rateLimitMap.get(ip);
-
     if (!entry || now > entry.resetAt) {
         rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
         return true;
     }
-
     if (entry.count >= RATE_LIMIT_MAX) return false;
     entry.count++;
     return true;
@@ -51,11 +48,11 @@ function clamp(n: number, min: number, max: number) {
     return Math.min(Math.max(n, min), max);
 }
 
-function offerVerdict(pct: number) {
-    if (pct >= 95) return { label: "Top", band: "95–100%" };
-    if (pct >= 85) return { label: "Typical", band: "85–95%" };
-    if (pct >= 80) return { label: "Below Avg", band: "80–85%" };
-    return { label: "Low", band: "<80%" };
+function offerBand(pct: number) {
+    if (pct >= 95) return { label: "Top", typical_band: "95–100%" };
+    if (pct >= 85) return { label: "Typical", typical_band: "85–95%" };
+    if (pct >= 80) return { label: "Below Avg", typical_band: "80–85%" };
+    return { label: "Low", typical_band: "<80%" };
 }
 
 export async function POST(req: Request) {
@@ -92,7 +89,16 @@ export async function POST(req: Request) {
             );
         }
 
-        const { zip, gross_weekly, hours, specialty, agency_name, ingest } = parsed.data;
+        const {
+            zip,
+            gross_weekly,
+            hours,
+            specialty,
+            agency_name,
+            ingest,
+            insurance_plan,
+            insurance_weekly_override,
+        } = parsed.data;
 
         // 1) ZIP → destination_id
         const location = await lookupLocation(zip);
@@ -108,7 +114,9 @@ export async function POST(req: Request) {
         const gsa = await lookupGsaRates(location.destination_id, fiscalYear);
         if (!gsa) {
             return NextResponse.json(
-                { error: `GSA rates not found for destination ${location.destination_id} (FY${fiscalYear}).` },
+                {
+                    error: `GSA rates not found for destination ${location.destination_id} (FY${fiscalYear}).`,
+                },
                 { status: 404 }
             );
         }
@@ -129,13 +137,27 @@ export async function POST(req: Request) {
         );
 
         const pct = clamp(financials.negotiation.pct_of_max ?? 0, 0, 200);
-        const verdict = offerVerdict(pct);
-
+        const band = offerBand(pct);
         const targetPct = 90;
-        const targetStipend = Math.round((gsa.weekly_max * (targetPct / 100)) * 100) / 100;
-        const deltaTo90 = Math.round((targetStipend - financials.breakdown.stipend_weekly) * 100) / 100;
+        const targetStipend =
+            Math.round(gsa.weekly_max * (targetPct / 100) * 100) / 100;
+        const deltaTo90 =
+            Math.round(
+                (targetStipend - financials.breakdown.stipend_weekly) * 100
+            ) / 100;
 
-        // 5) Fire-and-forget ingestion (OFF for preview calls)
+        // 5) Insurance
+        const insurance = estimateInsuranceWeekly({
+            agency_name: agency_name ?? null,
+            plan: insurance_plan as InsurancePlan,
+            weekly_override: insurance_weekly_override ?? null,
+        });
+
+        const insuranceMid = insurance.weekly_mid ?? 0;
+        const netAfterInsuranceWeekly =
+            Math.round((financials.breakdown.net_weekly - insuranceMid) * 100) / 100;
+
+        // 6) Ingest (OFF for preview calls)
         const ingestReport = async () => {
             try {
                 const serviceClient = createServiceClient();
@@ -155,6 +177,9 @@ export async function POST(req: Request) {
                     source: "calculator",
                     session_id: null,
                     ip_hash: ip !== "unknown" ? await hashIP(ip) : null,
+                    insurance_plan: insurance.plan,
+                    insurance_weekly_est: insuranceMid,
+                    insurance_source: insurance.source_type,
                 });
             } catch (e) {
                 console.error("[pay_reports] Ingestion failed:", e);
@@ -183,14 +208,29 @@ export async function POST(req: Request) {
                 housing: financials.housing,
                 negotiation: financials.negotiation,
                 contract_13wk: financials.contract_13wk,
+                insurance: {
+                    plan: insurance.plan,
+                    agency_label: insurance.agency_label,
+                    weekly_min: insurance.weekly_min,
+                    weekly_max: insurance.weekly_max,
+                    weekly_mid: insurance.weekly_mid,
+                    source_type: insurance.source_type,
+                    source_urls: insurance.source_urls,
+                    notes: insurance.notes,
+                },
+                derived: {
+                    net_after_insurance_weekly: netAfterInsuranceWeekly,
+                },
                 metadata: {
                     gsa_fiscal_year: gsa.fiscal_year,
-                    hud_rent_source: hud ? `HUD · ${hud.county}` : "National Median Estimate",
+                    hud_rent_source: hud
+                        ? `HUD · ${hud.county}`
+                        : "National Median Estimate",
                     tax_method: `Flat 20% estimate on taxable portion (min $${getMinTaxableHourly(specialty)}/hr taxable base)`,
                     offer_verdict: {
                         stipend_pct_of_gsa: pct,
-                        label: verdict.label,
-                        typical_band: verdict.band,
+                        label: band.label,
+                        typical_band: band.typical_band,
                         typical_target_pct: targetPct,
                         delta_to_typical_weekly: deltaTo90,
                         target_stipend_weekly: targetStipend,
