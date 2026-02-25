@@ -1,7 +1,7 @@
 // ━━━ GSA / HUD LOOKUP FUNCTIONS ━━━
 // Queries Supabase for GSA per diem rates via ZIP → destination_id join path.
 // Table: gsa_zip_mappings (40,426 rows) → gsa_rates (297 rows) via destination_id.
-// HUD FMR: matched by state + county name (fuzzy, " County" suffix in HUD data).
+// Housing: zip_housing_costs (38,601 rows) — HUD SAFMR + Zillow ZORI, deterministic ZIP lookup.
 
 import { supabase } from "./supabase";
 import type { LocationData, GsaData } from "@/types";
@@ -132,68 +132,73 @@ export async function lookupGsaRates(
   };
 }
 
-/**
- * Look up HUD Fair Market Rent by state + county.
- * HUD data uses "County" suffix (e.g., "Maricopa County").
- * GSA rates use multi-county strings — we parse the first county and try to match.
- * Falls back to state average if no exact match.
- */
-export async function lookupHudFmr(
-  state: string,
-  gsaCounty: string,
-): Promise<{ fmr_1br: number; county: string } | null> {
-  // Strategy 1: Parse first county from GSA multi-county string, try exact match
-  // GSA format: "Essex / Bergen / Hudson / Passaic" or "Maricopa"
-  const firstCounty = gsaCounty.split("/")[0].trim();
+// ━━━ HOUSING COST TYPES ━━━
 
-  if (firstCounty) {
-    const { data, error } = await supabase
-      .from("hud_fmr")
-      .select("fmr_1br, county")
-      .eq("state", state.toUpperCase())
-      .ilike("county", `${firstCounty}%`)
-      .limit(1)
-      .single();
+export interface HousingCostData {
+  zip: string;
+  metro_area: string | null;
+  fmr_studio: number | null;
+  fmr_1br: number | null;
+  fmr_2br: number | null;
+  fmr_3br: number | null;
+  fmr_4br: number | null;
+  zori_rent: number | null;
+}
 
-    if (!error && data && data.fmr_1br) {
-      return { fmr_1br: data.fmr_1br, county: data.county };
-    }
-  }
+export interface HousingCostResult extends HousingCostData {
+  market_ratio: number | null; // zori_rent / fmr_1br
+  fmr_1br_compat: number; // legacy compat
+  county: string; // legacy compat
+}
 
-  // Strategy 2: Try matching any county in the multi-county string
-  const counties = gsaCounty
-    .split("/")
-    .map((c) => c.trim())
-    .filter(Boolean);
-  for (const county of counties.slice(1)) {
-    const { data, error } = await supabase
-      .from("hud_fmr")
-      .select("fmr_1br, county")
-      .eq("state", state.toUpperCase())
-      .ilike("county", `${county}%`)
-      .limit(1)
-      .single();
+function normalizeZip(input: string | number): string | null {
+  if (input === null || input === undefined) return null;
 
-    if (!error && data && data.fmr_1br) {
-      return { fmr_1br: data.fmr_1br, county: data.county };
-    }
-  }
+  // Keep digits only; supports inputs like "07030-1234"
+  const digits = String(input).trim().replace(/\D/g, "");
 
-  // Strategy 3: State-level average (if multiple metros seeded for this state)
-  const { data: stateAvg, error: stateError } = await supabase
-    .from("hud_fmr")
-    .select("fmr_1br")
-    .eq("state", state.toUpperCase())
-    .limit(5);
+  // Handle the common "leading zero dropped" case (e.g., 7030 -> 07030)
+  if (digits.length === 4) return `0${digits}`;
 
-  if (!stateError && stateAvg && stateAvg.length > 0) {
-    const avg = Math.round(
-      stateAvg.reduce((sum, r) => sum + (r.fmr_1br ?? 0), 0) / stateAvg.length,
-    );
-    return { fmr_1br: avg, county: `${state} average` };
-  }
+  // Standard ZIP5 or ZIP+4
+  if (digits.length >= 5) return digits.slice(0, 5);
 
   return null;
+}
+
+/**
+ * Retrieves HUD SAFMR baseline and Zillow ZORI market rent deterministically by ZIP.
+ * Replaces legacy fuzzy county matching against the old `hud_fmr` table.
+ * O(1) primary-key lookup on `zip_housing_costs`.
+ *
+ * @param zipCode The 5-digit USPS ZIP code (string or number).
+ */
+export async function lookupHudFmr(
+  zipCode: string | number,
+  _legacyCounty?: string,
+): Promise<HousingCostResult | null> {
+  const cleanZip = normalizeZip(zipCode);
+  if (!cleanZip) return null;
+
+  const { data, error } = await supabase
+    .from("zip_housing_costs")
+    .select("zip, metro_area, fmr_studio, fmr_1br, fmr_2br, fmr_3br, fmr_4br, zori_rent")
+    .eq("zip", cleanZip)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const market_ratio =
+    data.fmr_1br && data.zori_rent && data.fmr_1br > 0
+      ? Number((data.zori_rent / data.fmr_1br).toFixed(2))
+      : null;
+
+  return {
+    ...(data as HousingCostData),
+    market_ratio,
+    fmr_1br_compat: (data.fmr_1br as number) ?? 0,
+    county: (data.metro_area as string) ?? ""
+  };
 }
 
 /**

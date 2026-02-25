@@ -152,8 +152,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) HUD
-    const hud = await lookupHudFmr(location.state, gsa.county ?? "");
+    // 3) Housing costs (deterministic ZIP lookup)
+    const hud = await lookupHudFmr(zip);
     const rent1Br = hud?.fmr_1br ?? 1800;
 
     // ━━━ BRANCH: CONSTRUCTION vs HEALTHCARE ━━━
@@ -242,7 +242,7 @@ export async function POST(req: Request) {
         metadata: {
           gsa_fiscal_year: gsa.fiscal_year,
           hud_rent_source: hud
-            ? `HUD · ${hud.county}`
+            ? `HUD SAFMR · ZIP ${zip} · FY2026${hud.market_ratio ? ` · Market ratio: ${hud.market_ratio}×` : ""}`
             : "National Median Estimate",
           tax_method: `Taxable base floored at $${getMinTaxableHourly(specialty)}/hr. ${getTierInfo(specialty).blsDesc}.`,
           offer_verdict: {
@@ -257,9 +257,11 @@ export async function POST(req: Request) {
             `Taxable base rate: $${getMinTaxableHourly(specialty)}/hr minimum (site floor for ${specialty})`,
             "Tax-free stipend = gross minus taxable wages, capped at GSA ceiling",
             "Tax estimate is ~20% flat on taxable wages — not a tax calculation",
-            `HUD FMR 1BR: $${rent1Br}/mo — ${hud ? "county-level data" : "national fallback"}`,
+            `HUD FMR 1BR: $${rent1Br}/mo — ${hud ? "ZIP-level data (FY2026)" : "national fallback"}`,
+            hud?.zori_rent ? `Zillow Observed Rent: $${Math.round(hud.zori_rent)}/mo` : null,
+            hud?.market_ratio ? `Market ratio: ${hud.market_ratio}× (observed / federal baseline)` : null,
             "Contract projection assumes 13 weeks",
-          ],
+          ].filter(Boolean),
         },
       },
     });
@@ -430,7 +432,7 @@ async function handleConstruction(
       metadata: {
         gsa_fiscal_year: gsa.fiscal_year,
         hud_rent_source: hud
-          ? `HUD · ${hud.county}`
+          ? `HUD SAFMR · ZIP ${location.zip} · FY2026${hud.market_ratio ? ` · Market ratio: ${hud.market_ratio}×` : ""}`
           : "National Median Estimate",
         tax_method: `Flat 22% on wages ($${pay.weekly_wage}/wk); per diem ($${pay.weekly_per_diem}/wk) tax-free under IRS 1-year rule`,
         offer_verdict: {
