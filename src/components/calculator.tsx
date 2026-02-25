@@ -1065,7 +1065,7 @@ export default function Calculator() {
 
           {/* ━━━ AGENCY ━━━ */}
           <Card>
-            <MicroLabel>Agency (crowdsourced intel)</MicroLabel>
+            <MicroLabel>Agency</MicroLabel>
             <input
               value={agency}
               onChange={(e) => setAgency(e.target.value)}
