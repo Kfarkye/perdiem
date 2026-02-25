@@ -16,9 +16,9 @@ html {
 }
 
 body {
-  background: #FAFAF8;
-  color: #1A1A18;
-  font-family: 'DM Sans', sans-serif;
+  background: #fafaf8;
+  color: #1a1a18;
+  font-family: "DM Sans", sans-serif;
   line-height: 1.55;
   min-height: 100vh;
 }
@@ -38,7 +38,7 @@ input {
 
 /* Remove default focus outline, use theme border */
 *:focus-visible {
-  outline: 2px solid #1A8A6E;
+  outline: 2px solid #1a8a6e;
   outline-offset: 2px;
 }
 
@@ -52,10 +52,10 @@ input {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #E0DDD6;
+  background: #e0ddd6;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9E9A92;
+  background: #9e9a92;
 }

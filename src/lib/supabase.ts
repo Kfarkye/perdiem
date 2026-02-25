@@ -13,8 +13,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
  * Note: Returns a dummy client during build-time data collection when env vars are missing.
  */
 export const supabase: SupabaseClient = supabaseUrl
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : createClient("https://placeholder.supabase.co", "placeholder-key");
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createClient("https://placeholder.supabase.co", "placeholder-key");
 
 /**
  * Server-only client — service role key bypasses RLS.
@@ -24,18 +24,18 @@ export const supabase: SupabaseClient = supabaseUrl
 let _serviceClient: SupabaseClient | null = null;
 
 export function createServiceClient(): SupabaseClient {
-    if (_serviceClient) return _serviceClient;
+  if (_serviceClient) return _serviceClient;
 
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceKey) {
-        throw new Error(
-            "SUPABASE_SERVICE_ROLE_KEY is not set. Server writes require the service role key."
-        );
-    }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY is not set. Server writes require the service role key.",
+    );
+  }
 
-    _serviceClient = createClient(supabaseUrl, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-    });
+  _serviceClient = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-    return _serviceClient;
+  return _serviceClient;
 }

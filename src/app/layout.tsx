@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description:
     "Travel nurse per diem calculator. Plug in your assignment ZIP and see what GSA says your stipend should be. The math your recruiter won't show you.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://perdiem.fyi"
+    process.env.NEXT_PUBLIC_SITE_URL || "https://perdiem.fyi",
   ),
   openGraph: {
     title: "PerDiem.fyi — Your Per Diem, Decoded",
