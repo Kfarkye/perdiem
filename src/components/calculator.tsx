@@ -180,6 +180,7 @@ function buildPrefillUrl(p: {
   specialty?: string;
   hours?: number;
   agency?: string;
+  facility?: string;
   plan?: InsurancePlan;
   ins?: number | null;
 }) {
@@ -195,6 +196,9 @@ function buildPrefillUrl(p: {
   const a = (p.agency ?? "").trim();
   if (a) sp.set("agency", a);
   else sp.delete("agency");
+  const fac = (p.facility ?? "").trim();
+  if (fac) sp.set("facility", fac);
+  else sp.delete("facility");
   sp.set("plan", p.plan ?? "none");
   if (typeof p.ins === "number" && p.ins >= 0) sp.set("ins", String(p.ins));
   else sp.delete("ins");
@@ -518,6 +522,7 @@ export default function Calculator() {
   const [hours, setHours] = useState(36);
   const [gross, setGross] = useState("");
   const [agency, setAgency] = useState("");
+  const [facilityName, setFacilityName] = useState("");
   const [plan, setPlan] = useState<InsurancePlan>("none");
   const [insuranceOverride, setInsuranceOverride] = useState("");
   const [loading, setLoading] = useState(false);
@@ -541,6 +546,7 @@ export default function Calculator() {
     const gRaw = sp.get("gross") ?? "";
     const g = parseInt(gRaw.replace(/\D/g, ""), 10);
     const a = (sp.get("agency") ?? "").slice(0, 100);
+    const fac = (sp.get("facility") ?? "").slice(0, 200);
     const p = (sp.get("plan") ?? "none") as InsurancePlan;
     const ins = sp.get("ins") ?? "";
     const spec = sp.get("specialty") ?? "RN";
@@ -549,6 +555,7 @@ export default function Calculator() {
     if (z.length === 5) setZip(z);
     if (!Number.isNaN(g) && g > 0) setGross(String(g));
     if (a) setAgency(a);
+    if (fac) setFacilityName(fac);
     if (["none", "single", "family", "aca", "private"].includes(p)) setPlan(p);
     if (ins) setInsuranceOverride(ins.replace(/[^\d.]/g, ""));
     if (spec) setSpecialty(spec);
@@ -576,6 +583,7 @@ export default function Calculator() {
               hours: effectiveHours,
               specialty: spec,
               agency_name: a || null,
+              facility_name: fac || null,
               ingest: true,
               insurance_plan: p,
               insurance_weekly_override: Number.isFinite(overrideNum as number)
@@ -653,11 +661,12 @@ export default function Calculator() {
       specialty,
       hours,
       agency: agency.trim(),
+      facility: facilityName.trim(),
       plan,
       ins: Number.isFinite(insNum as number) ? insNum : null,
     });
     window.history.replaceState({}, "", url);
-  }, [zip, gross, specialty, hours, agency, plan, insuranceOverride]);
+  }, [zip, gross, specialty, hours, agency, facilityName, plan, insuranceOverride]);
 
   // ━━━ HANDLERS ━━━
 
@@ -714,6 +723,7 @@ export default function Calculator() {
           hours,
           specialty,
           agency_name: agency.trim() ? agency.trim() : null,
+          facility_name: facilityName.trim() ? facilityName.trim() : null,
           ingest: true,
           insurance_plan: plan,
           insurance_weekly_override: Number.isFinite(overrideNum as number)
@@ -735,7 +745,7 @@ export default function Calculator() {
     } finally {
       setLoading(false);
     }
-  }, [zip, gross, hours, specialty, agency, plan, insuranceOverride]);
+  }, [zip, gross, hours, specialty, agency, facilityName, plan, insuranceOverride]);
 
   const handleShareLink = useCallback(async () => {
     if (typeof window === "undefined" || !result) return;
@@ -748,6 +758,7 @@ export default function Calculator() {
       specialty,
       hours: result.hours,
       agency: agency.trim(),
+      facility: facilityName.trim(),
       plan,
       ins: Number.isFinite(insNum as number) ? insNum : null,
     });
@@ -768,6 +779,7 @@ export default function Calculator() {
     setSpecialty("RN");
     setHours(36);
     setAgency("");
+    setFacilityName("");
     setPlan("none");
     setInsuranceOverride("");
     setGsaPreview(null);
@@ -1102,6 +1114,42 @@ export default function Calculator() {
                 </button>
               ))}
             </div>
+          </Card>
+
+          {/* ━━━ FACILITY (optional) ━━━ */}
+          <Card>
+            <MicroLabel>Facility name (optional)</MicroLabel>
+            <input
+              value={facilityName}
+              onChange={(e) => setFacilityName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleOfferSubmit()}
+              placeholder="e.g. Memorial Hermann, Banner Health…"
+              style={{
+                width: "100%",
+                marginTop: "8px",
+                boxSizing: "border-box" as const,
+                fontFamily: f.sans,
+                fontSize: "15px",
+                fontWeight: 500,
+                padding: "12px",
+                borderRadius: "10px",
+                border: `2px solid ${facilityName.trim().length >= 2 ? T.borderFocus : T.border}`,
+                background: T.surface,
+                color: T.text,
+                outline: "none",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: f.sans,
+                fontSize: "11px",
+                color: T.textTertiary,
+                marginTop: "4px",
+                display: "block",
+              }}
+            >
+              Helps build market intel for this facility. Never shared publicly.
+            </span>
           </Card>
 
           {/* ━━━ INSURANCE ━━━ */}

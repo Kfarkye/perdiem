@@ -47,6 +47,7 @@ const LookupStipendSchema = z.object({
 
   // Shared fields
   agency_name: z.string().max(100).optional().nullable(),
+  facility_name: z.string().max(200).optional().nullable(),
   ingest: z.boolean().optional().default(true),
   insurance_plan: z
     .enum(["none", "single", "family", "aca", "private", "union"])
@@ -353,6 +354,7 @@ async function handleConstruction(
         weekly_gross: pay.weekly_gross_total,
         hours_per_week: pay.total_hours,
         agency_name: d.agency_name || null,
+        facility_name: d.facility_name || null,
         stipend_weekly: pay.weekly_per_diem,
         taxable_hourly: hourlyRate,
         contract_length_weeks: 13,
@@ -489,6 +491,7 @@ async function ingestReport(
       weekly_gross: d.gross_weekly,
       hours_per_week: d.hours,
       agency_name: d.agency_name || null,
+      facility_name: d.facility_name || null,
       stipend_weekly: financials.breakdown.stipend_weekly,
       taxable_hourly: financials.breakdown.taxable_hourly,
       contract_length_weeks: 13,
