@@ -27,6 +27,8 @@ interface ApiResult {
   };
   housing: {
     hud_fmr_1br: number;
+    zori_rent?: number | null;
+    market_ratio?: number | null;
     stipend_monthly_est: number;
     stipend_surplus_monthly: number;
   };
@@ -82,6 +84,8 @@ interface DisplayResult {
   offerLabel: string;
   typicalBand: string;
   housing1br: number;
+  zoriRent: number | null;
+  marketRatio: number | null;
   stipendSurplus: number;
   insurancePlan: InsurancePlan;
   insuranceWeeklyMid: number;
@@ -114,6 +118,8 @@ function mapApiToDisplay(api: ApiResult): DisplayResult {
     offerLabel: ov?.label ?? "—",
     typicalBand: ov?.typical_band ?? "85–95%",
     housing1br: api.housing.hud_fmr_1br,
+    zoriRent: api.housing.zori_rent ?? null,
+    marketRatio: api.housing.market_ratio ?? null,
     stipendSurplus: api.housing.stipend_surplus_monthly,
     insurancePlan: api.insurance.plan,
     insuranceWeeklyMid: api.insurance.weekly_mid ?? 0,
@@ -1597,6 +1603,63 @@ export default function Calculator() {
                 ${r.housing1br.toLocaleString()}/mo
               </span>
             </div>
+            {r.zoriRent && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "6px 0",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: f.sans,
+                    fontSize: "13px",
+                    color: T.textSecondary,
+                  }}
+                >
+                  Zillow Observed Rent
+                </span>
+                <span
+                  style={{
+                    fontFamily: f.mono,
+                    fontSize: "14px",
+                    fontWeight: 700,
+                  }}
+                >
+                  ${Math.round(r.zoriRent).toLocaleString()}/mo
+                </span>
+              </div>
+            )}
+            {r.marketRatio && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "6px 0",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: f.sans,
+                    fontSize: "13px",
+                    color: T.textSecondary,
+                  }}
+                >
+                  Observed Market Ratio
+                </span>
+                <span
+                  style={{
+                    fontFamily: f.mono,
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: r.marketRatio > 1.1 ? T.moneyNegative : T.text,
+                  }}
+                >
+                  {r.marketRatio}×
+                </span>
+              </div>
+            )}
             <div
               style={{
                 height: "1px",

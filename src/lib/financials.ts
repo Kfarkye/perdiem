@@ -111,6 +111,7 @@ export function deriveHousingData(
   lodgingDailyOrStipend: number,
   mealsDailyOrRent: number,
   rentOptional?: number,
+  zoriRentOptional?: number | null,
 ): HousingData {
   let monthlyStipend;
   let rent;
@@ -123,10 +124,15 @@ export function deriveHousingData(
     rent = mealsDailyOrRent;
   }
 
+  const effectiveRent = zoriRentOptional ?? rent;
+  const market_ratio = rent && zoriRentOptional && rent > 0 ? Number((zoriRentOptional / rent).toFixed(2)) : null;
+
   return {
     hud_fmr_1br: rent,
+    zori_rent: zoriRentOptional ?? null,
+    market_ratio,
     stipend_monthly_est: monthlyStipend,
-    stipend_surplus_monthly: monthlyStipend - rent,
+    stipend_surplus_monthly: monthlyStipend - effectiveRent,
   };
 }
 
@@ -169,6 +175,7 @@ export function deriveFinancials(
   fiscalYear: number,
   hudFmr1br: number,
   specialty: string = "RN",
+  zoriRent: number | null = null,
 ) {
   const gsa = deriveGsaTotals(gsaLodgingDaily, gsaMealsDaily, fiscalYear);
   const breakdown = derivePayBreakdown(
@@ -177,7 +184,7 @@ export function deriveFinancials(
     hours,
     specialty,
   );
-  const housing = deriveHousingData(breakdown.stipend_weekly, hudFmr1br);
+  const housing = deriveHousingData(breakdown.stipend_weekly, hudFmr1br, undefined, zoriRent);
   const negotiation = deriveNegotiationBands(
     gsa.weekly_max,
     breakdown.stipend_weekly,

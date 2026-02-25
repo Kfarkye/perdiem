@@ -61,10 +61,10 @@ console.log("\n💰 Pay Breakdown");
 console.log("\n💰 Gross Below GSA");
 {
   const b = derivePayBreakdown(1500, 1694, 36);
-  assertEq(b.stipend_weekly, 1500, "stipend capped at gross");
-  assertEq(b.taxable_weekly, 0, "no taxable when gross < GSA");
-  assertEq(b.tax_estimate_weekly, 0, "no tax when no taxable");
-  assertEq(b.net_weekly, 1500, "net = gross when fully tax-free");
+  assertEq(b.stipend_weekly, 780, "stipend capped at gross minus min wage floor");
+  assertEq(b.taxable_weekly, 720, "taxable defaults to min wage floor");
+  assertEq(b.tax_estimate_weekly, 144, "tax estimate");
+  assertEq(b.net_weekly, 1356, "net");
 }
 
 // ━━━ TEST: Housing Data ━━━

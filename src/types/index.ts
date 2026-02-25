@@ -148,6 +148,8 @@ export interface PayBreakdown {
 
 export interface HousingData {
   hud_fmr_1br: number;
+  zori_rent?: number | null;
+  market_ratio?: number | null;
   stipend_monthly_est: number;
   stipend_surplus_monthly: number;
 }

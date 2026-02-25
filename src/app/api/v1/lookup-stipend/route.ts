@@ -174,6 +174,7 @@ export async function POST(req: Request) {
       gsa.fiscal_year,
       rent1Br,
       specialty,
+      hud?.zori_rent ?? null,
     );
 
     const pct = clamp(financials.negotiation.pct_of_max ?? 0, 0, 200);
