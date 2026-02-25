@@ -126,11 +126,53 @@ function mapApiToDisplay(api: ApiResult): DisplayResult {
     };
 }
 
+// ━━━ CONSTANTS ━━━
+
+const SPECIALTIES: Array<{ value: string; label: string; hours: number }> = [
+    { value: "RN", label: "RN", hours: 36 },
+    { value: "PT", label: "PT", hours: 40 },
+    { value: "OT", label: "OT", hours: 40 },
+    { value: "SLP", label: "SLP", hours: 40 },
+    { value: "RT", label: "RT", hours: 36 },
+    { value: "LPN", label: "LPN / LVN", hours: 36 },
+    { value: "CNA", label: "CNA", hours: 36 },
+    { value: "TECH", label: "Surg Tech", hours: 40 },
+    { value: "PHLEBOTOMIST", label: "Phlebotomist", hours: 40 },
+    { value: "MLT", label: "Lab / MLT", hours: 40 },
+    { value: "RAD_TECH", label: "Rad Tech", hours: 40 },
+    { value: "DIETITIAN", label: "Dietitian", hours: 40 },
+    { value: "OTHER", label: "Other", hours: 36 },
+];
+
+// Neutral ordering — no single agency leads. Alphabetical by display name.
+const AGENCY_CHIPS = [
+    "AMN",
+    "Aya",
+    "Cross Country",
+    "Fastaff",
+    "FlexCare",
+    "Host",
+    "Medical Solutions",
+    "Nomad",
+    "TNAA",
+    "Trusted",
+];
+
+const PLAN_OPTIONS: Array<{ value: InsurancePlan; label: string }> = [
+    { value: "none", label: "None / waived" },
+    { value: "single", label: "Single" },
+    { value: "family", label: "Family" },
+    { value: "aca", label: "ACA" },
+    { value: "private", label: "Private" },
+];
+
 // ━━━ HELPERS ━━━
 
 function buildPrefillUrl(p: {
     zip: string;
     gross?: number;
+    specialty?: string;
+    hours?: number;
     agency?: string;
     plan?: InsurancePlan;
     ins?: number | null;
@@ -140,6 +182,10 @@ function buildPrefillUrl(p: {
     sp.set("zip", p.zip);
     if (p.gross && p.gross > 0) sp.set("gross", String(p.gross));
     else sp.delete("gross");
+    if (p.specialty && p.specialty !== "RN") sp.set("specialty", p.specialty);
+    else sp.delete("specialty");
+    if (p.hours && p.hours !== 36) sp.set("hours", String(p.hours));
+    else sp.delete("hours");
     const a = (p.agency ?? "").trim();
     if (a) sp.set("agency", a);
     else sp.delete("agency");
@@ -155,6 +201,10 @@ function classifyOffer(pct: number) {
     if (pct >= 85) return { label: "Typical", color: T.primary };
     if (pct >= 80) return { label: "Below Avg", color: T.accent };
     return { label: "Low", color: T.moneyNegative };
+}
+
+function getDefaultHours(specialty: string): number {
+    return SPECIALTIES.find((s) => s.value === specialty)?.hours ?? 36;
 }
 
 // ━━━ UI PRIMITIVES ━━━
@@ -198,15 +248,7 @@ function Logo() {
                 }}
             >
                 Per<span style={{ color: T.primary }}>Diem</span>
-                <span
-                    style={{
-                        fontWeight: 400,
-                        color: T.textTertiary,
-                        fontSize: "13px",
-                    }}
-                >
-                    .fyi
-                </span>
+                <span style={{ fontWeight: 400, color: T.textTertiary, fontSize: "13px" }}>.fyi</span>
             </span>
         </div>
     );
@@ -230,16 +272,7 @@ function GovBadge({ text }: { text: string }) {
                 letterSpacing: "0.04em",
             }}
         >
-            <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={T.accent}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             {text}
@@ -249,175 +282,49 @@ function GovBadge({ text }: { text: string }) {
 
 function MicroLabel({ children }: { children: React.ReactNode }) {
     return (
-        <span
-            style={{
-                fontFamily: f.sans,
-                fontSize: "10px",
-                fontWeight: 700,
-                color: T.textTertiary,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase" as const,
-            }}
-        >
+        <span style={{ fontFamily: f.sans, fontSize: "10px", fontWeight: 700, color: T.textTertiary, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
             {children}
         </span>
     );
 }
 
-function Card({
-    children,
-    style = {},
-}: {
-    children: React.ReactNode;
-    style?: React.CSSProperties;
-}) {
+function Card({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
     return (
-        <div
-            style={{
-                background: T.surface,
-                border: `1px solid ${T.border}`,
-                borderRadius: "12px",
-                padding: "20px",
-                ...style,
-            }}
-        >
+        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "20px", ...style }}>
             {children}
         </div>
     );
 }
 
-function ProgressBar({
-    value,
-    max,
-    color,
-    height = "6px",
-}: {
-    value: number;
-    max: number;
-    color: string;
-    height?: string;
-}) {
+function ProgressBar({ value, max, color, height = "6px" }: { value: number; max: number; color: string; height?: string }) {
     const safeMax = Math.max(max, 1);
     const pct = Math.min((value / safeMax) * 100, 100);
     return (
-        <div
-            style={{
-                width: "100%",
-                height,
-                background: T.surfaceRaised,
-                borderRadius: "99px",
-                overflow: "hidden",
-            }}
-        >
-            <div
-                style={{
-                    width: `${pct}%`,
-                    height: "100%",
-                    background: color,
-                    borderRadius: "99px",
-                    transition: "width 1s cubic-bezier(0.16, 1, 0.3, 1)",
-                }}
-            />
+        <div style={{ width: "100%", height, background: T.surfaceRaised, borderRadius: "99px", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: "99px", transition: "width 1s cubic-bezier(0.16, 1, 0.3, 1)" }} />
         </div>
     );
 }
 
 function LoadingView({ text }: { text: string }) {
     return (
-        <div
-            style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "100vh",
-                padding: "40px 20px",
-                gap: "24px",
-            }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 20px", gap: "24px" }}>
             <Logo />
-            <div
-                style={{
-                    width: "40px",
-                    height: "40px",
-                    border: `3px solid ${T.border}`,
-                    borderTopColor: T.primary,
-                    borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite",
-                }}
-            />
-            <p
-                style={{
-                    fontFamily: f.sans,
-                    fontSize: "15px",
-                    color: T.textSecondary,
-                    textAlign: "center",
-                }}
-            >
-                {text}
-            </p>
+            <div style={{ width: "40px", height: "40px", border: `3px solid ${T.border}`, borderTopColor: T.primary, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <p style={{ fontFamily: f.sans, fontSize: "15px", color: T.textSecondary, textAlign: "center" }}>{text}</p>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
 
-function ErrorView({
-    message,
-    onRetry,
-}: {
-    message: string;
-    onRetry: () => void;
-}) {
+function ErrorView({ message, onRetry }: { message: string; onRetry: () => void }) {
     return (
-        <div
-            style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "100vh",
-                padding: "40px 20px",
-                gap: "20px",
-            }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 20px", gap: "20px" }}>
             <Logo />
             <Card style={{ maxWidth: "360px", textAlign: "center" }}>
-                <div
-                    style={{
-                        fontFamily: f.sans,
-                        fontSize: "14px",
-                        color: T.moneyNegative,
-                        fontWeight: 800,
-                        marginBottom: "8px",
-                    }}
-                >
-                    Something went wrong
-                </div>
-                <p
-                    style={{
-                        fontFamily: f.sans,
-                        fontSize: "13px",
-                        color: T.textSecondary,
-                        margin: "0 0 16px",
-                        lineHeight: 1.5,
-                    }}
-                >
-                    {message}
-                </p>
-                <button
-                    onClick={onRetry}
-                    style={{
-                        fontFamily: f.sans,
-                        fontSize: "14px",
-                        fontWeight: 800,
-                        padding: "10px 32px",
-                        borderRadius: "8px",
-                        border: "none",
-                        background: T.primary,
-                        color: "#fff",
-                        cursor: "pointer",
-                    }}
-                >
+                <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.moneyNegative, fontWeight: 800, marginBottom: "8px" }}>Something went wrong</div>
+                <p style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary, margin: "0 0 16px", lineHeight: 1.5 }}>{message}</p>
+                <button onClick={onRetry} style={{ fontFamily: f.sans, fontSize: "14px", fontWeight: 800, padding: "10px 32px", borderRadius: "8px", border: "none", background: T.primary, color: "#fff", cursor: "pointer" }}>
                     Try again
                 </button>
             </Card>
@@ -425,38 +332,7 @@ function ErrorView({
     );
 }
 
-// ━━━ CONSTANTS ━━━
-
-const AGENCY_CHIPS = [
-    "Aya",
-    "Trusted",
-    "Medical Solutions",
-    "Host",
-    "TNAA",
-    "AMN",
-    "Cross Country",
-    "FlexCare",
-    "Fastaff",
-    "Nomad",
-];
-
-const PLAN_OPTIONS: Array<{ value: InsurancePlan; label: string }> = [
-    { value: "none", label: "None / waived" },
-    { value: "single", label: "Single" },
-    { value: "family", label: "Family" },
-    { value: "aca", label: "ACA" },
-    { value: "private", label: "Private" },
-];
-
-function PlanPill({
-    label,
-    active,
-    onClick,
-}: {
-    label: string;
-    active: boolean;
-    onClick: () => void;
-}) {
+function Pill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
         <button
             onClick={onClick}
@@ -483,6 +359,8 @@ function PlanPill({
 export default function Calculator() {
     const [step, setStep] = useState(0);
     const [zip, setZip] = useState("");
+    const [specialty, setSpecialty] = useState("RN");
+    const [hours, setHours] = useState(36);
     const [gross, setGross] = useState("");
     const [agency, setAgency] = useState("");
     const [plan, setPlan] = useState<InsurancePlan>("none");
@@ -493,7 +371,11 @@ export default function Calculator() {
     const [gsaPreview, setGsaPreview] = useState<ApiResult | null>(null);
     const [result, setResult] = useState<DisplayResult | null>(null);
 
-    const hours = 36;
+    // When specialty changes, update hours to default for that profession
+    const handleSpecialtyChange = useCallback((val: string) => {
+        setSpecialty(val);
+        setHours(getDefaultHours(val));
+    }, []);
 
     // ━━━ URL PREFILL ON MOUNT ━━━
     useEffect(() => {
@@ -506,19 +388,24 @@ export default function Calculator() {
         const a = (sp.get("agency") ?? "").slice(0, 100);
         const p = (sp.get("plan") ?? "none") as InsurancePlan;
         const ins = sp.get("ins") ?? "";
+        const spec = sp.get("specialty") ?? "RN";
+        const h = parseInt(sp.get("hours") ?? "", 10);
 
         if (z.length === 5) setZip(z);
         if (!Number.isNaN(g) && g > 0) setGross(String(g));
         if (a) setAgency(a);
         if (["none", "single", "family", "aca", "private"].includes(p)) setPlan(p);
         if (ins) setInsuranceOverride(ins.replace(/[^\d.]/g, ""));
+        if (spec) setSpecialty(spec);
+        if (!Number.isNaN(h) && h >= 8 && h <= 80) setHours(h);
+        else setHours(getDefaultHours(spec));
+
+        const effectiveHours = !Number.isNaN(h) && h >= 8 && h <= 80 ? h : getDefaultHours(spec);
 
         const run = async () => {
             if (z.length !== 5) return;
-
             const overrideNum = ins ? parseFloat(ins) : null;
 
-            // Full auto-run if ZIP + gross
             if (!Number.isNaN(g) && g >= 200) {
                 setLoading(true);
                 setLoadingText("Decoding the offer…");
@@ -530,7 +417,8 @@ export default function Calculator() {
                         body: JSON.stringify({
                             zip: z,
                             gross_weekly: g,
-                            hours,
+                            hours: effectiveHours,
+                            specialty: spec,
                             agency_name: a || null,
                             ingest: true,
                             insurance_plan: p,
@@ -554,7 +442,6 @@ export default function Calculator() {
                 return;
             }
 
-            // ZIP-only preview (NO ingestion)
             setLoading(true);
             setLoadingText("Looking up GSA rates…");
             setError(null);
@@ -562,7 +449,7 @@ export default function Calculator() {
                 const res = await fetch("/api/v1/lookup-stipend", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ zip: z, gross_weekly: 2000, hours, ingest: false, insurance_plan: "none" }),
+                    body: JSON.stringify({ zip: z, gross_weekly: 2000, hours: effectiveHours, specialty: spec, ingest: false, insurance_plan: "none" }),
                 });
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
@@ -592,12 +479,14 @@ export default function Calculator() {
         const url = buildPrefillUrl({
             zip,
             gross: grossNum,
+            specialty,
+            hours,
             agency: agency.trim(),
             plan,
             ins: Number.isFinite(insNum as number) ? insNum : null,
         });
         window.history.replaceState({}, "", url);
-    }, [zip, gross, agency, plan, insuranceOverride]);
+    }, [zip, gross, specialty, hours, agency, plan, insuranceOverride]);
 
     // ━━━ HANDLERS ━━━
 
@@ -610,7 +499,7 @@ export default function Calculator() {
             const res = await fetch("/api/v1/lookup-stipend", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ zip, gross_weekly: 2000, hours, ingest: false, insurance_plan: "none" }),
+                body: JSON.stringify({ zip, gross_weekly: 2000, hours, specialty, ingest: false, insurance_plan: "none" }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
@@ -625,7 +514,7 @@ export default function Calculator() {
         } finally {
             setLoading(false);
         }
-    }, [zip]);
+    }, [zip, hours, specialty]);
 
     const handleOfferSubmit = useCallback(async () => {
         if (gross.length < 3) return;
@@ -642,6 +531,7 @@ export default function Calculator() {
                     zip,
                     gross_weekly: grossNum,
                     hours,
+                    specialty,
                     agency_name: agency.trim() ? agency.trim() : null,
                     ingest: true,
                     insurance_plan: plan,
@@ -661,7 +551,7 @@ export default function Calculator() {
         } finally {
             setLoading(false);
         }
-    }, [zip, gross, agency, plan, insuranceOverride]);
+    }, [zip, gross, hours, specialty, agency, plan, insuranceOverride]);
 
     const handleShareLink = useCallback(async () => {
         if (typeof window === "undefined" || !result) return;
@@ -669,22 +559,27 @@ export default function Calculator() {
         const url = buildPrefillUrl({
             zip: result.zip,
             gross: result.weeklyGross,
+            specialty,
+            hours: result.hours,
             agency: agency.trim(),
             plan,
             ins: Number.isFinite(insNum as number) ? insNum : null,
         });
-        const text = `PerDiem.fyi — ${result.zip} $${result.weeklyGross}/wk · ${result.pctOfMax}% GSA · net after insurance $${result.netAfterInsuranceWeekly}/wk`;
+        const specLabel = SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
+        const text = `PerDiem.fyi — ${specLabel} in ${result.zip} · $${result.weeklyGross}/wk · ${result.pctOfMax}% GSA · net after insurance $${result.netAfterInsuranceWeekly}/wk`;
         if (navigator.share) {
             await navigator.share({ title: "PerDiem.fyi", text, url });
         } else {
             await navigator.clipboard.writeText(url);
         }
-    }, [result, agency, plan, insuranceOverride]);
+    }, [result, specialty, agency, plan, insuranceOverride]);
 
     const handleReset = useCallback(() => {
         setStep(0);
         setZip("");
         setGross("");
+        setSpecialty("RN");
+        setHours(36);
         setAgency("");
         setPlan("none");
         setInsuranceOverride("");
@@ -723,7 +618,7 @@ export default function Calculator() {
                             Is this offer good?
                         </div>
                         <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "6px", lineHeight: 1.5 }}>
-                            ZIP → offer → insurance → real net.
+                            ZIP → profession → offer → real net after insurance.
                         </div>
                     </div>
                     <div style={{ width: "100%" }}>
@@ -752,8 +647,10 @@ export default function Calculator() {
         );
     }
 
-    // ━━━ STEP 1: AGENCY + OFFER + INSURANCE ━━━
+    // ━━━ STEP 1: PROFESSION + AGENCY + INSURANCE + OFFER ━━━
     if (step === 1 && gsaPreview) {
+        const specLabel = SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
+
         return (
             <div style={{ background: T.bg, minHeight: "100vh", color: T.text, padding: "28px 16px", display: "flex", justifyContent: "center" }}>
                 <div style={{ width: "100%", maxWidth: "420px", display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -773,14 +670,47 @@ export default function Calculator() {
                         </div>
                     </Card>
 
-                    {/* Agency */}
+                    {/* ━━━ PROFESSION ━━━ */}
+                    <Card>
+                        <MicroLabel>Profession</MicroLabel>
+                        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: "8px", marginTop: "10px" }}>
+                            {SPECIALTIES.map((s) => (
+                                <Pill
+                                    key={s.value}
+                                    label={s.label}
+                                    active={specialty === s.value}
+                                    onClick={() => handleSpecialtyChange(s.value)}
+                                />
+                            ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
+                            <label style={{ fontFamily: f.sans, fontSize: "12px", fontWeight: 700, color: T.textSecondary, whiteSpace: "nowrap" as const }}>
+                                Hours/wk
+                            </label>
+                            <input
+                                value={hours}
+                                onChange={(e) => {
+                                    const v = parseInt(e.target.value, 10);
+                                    if (!Number.isNaN(v) && v >= 0 && v <= 80) setHours(v);
+                                    else if (e.target.value === "") setHours(0 as unknown as number);
+                                }}
+                                inputMode="numeric"
+                                style={{ width: "60px", fontFamily: f.mono, fontSize: "15px", fontWeight: 900, padding: "8px 10px", borderRadius: "8px", border: `1px solid ${T.border}`, background: T.surface, color: T.text, outline: "none", textAlign: "center" as const }}
+                            />
+                            <span style={{ fontFamily: f.sans, fontSize: "11px", color: T.textTertiary }}>
+                                Default for {specLabel}: {getDefaultHours(specialty)}hr
+                            </span>
+                        </div>
+                    </Card>
+
+                    {/* ━━━ AGENCY ━━━ */}
                     <Card>
                         <MicroLabel>Agency (crowdsourced intel)</MicroLabel>
                         <input
                             value={agency}
                             onChange={(e) => setAgency(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleOfferSubmit()}
-                            placeholder="Aya, Trusted, Medical Solutions…"
+                            placeholder="Type or tap below"
                             style={{ width: "100%", marginTop: "8px", boxSizing: "border-box" as const, fontFamily: f.sans, fontSize: "15px", fontWeight: 700, padding: "12px", borderRadius: "10px", border: `2px solid ${agency.trim().length >= 2 ? T.borderFocus : T.border}`, background: T.surface, color: T.text, outline: "none" }}
                         />
                         <div style={{ display: "flex", flexWrap: "wrap" as const, gap: "8px", marginTop: "10px" }}>
@@ -796,12 +726,12 @@ export default function Calculator() {
                         </div>
                     </Card>
 
-                    {/* Insurance */}
+                    {/* ━━━ INSURANCE ━━━ */}
                     <Card>
                         <MicroLabel>Health insurance</MicroLabel>
                         <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" as const }}>
                             {PLAN_OPTIONS.map((o) => (
-                                <PlanPill key={o.value} label={o.label} active={plan === o.value} onClick={() => setPlan(o.value)} />
+                                <Pill key={o.value} label={o.label} active={plan === o.value} onClick={() => setPlan(o.value)} />
                             ))}
                         </div>
                         {plan !== "none" && (
@@ -824,7 +754,7 @@ export default function Calculator() {
                         )}
                     </Card>
 
-                    {/* Gross + submit */}
+                    {/* ━━━ GROSS + SUBMIT ━━━ */}
                     <Card>
                         <MicroLabel>Weekly gross offer</MicroLabel>
                         <div style={{ position: "relative", marginTop: "10px" }}>
@@ -858,6 +788,7 @@ export default function Calculator() {
         const cls = classifyOffer(r.pctOfMax);
         const delta = Math.round(r.deltaToTypicalWeekly);
         const leaving = delta > 0;
+        const specLabel = SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
 
         const verdictLine = leaving
             ? `Stipend is ${r.pctOfMax}% of GSA max. Most agencies land ${r.typicalBand}. You're leaving ~$${Math.abs(delta).toLocaleString()}/wk on the table vs 90%.`
@@ -889,7 +820,7 @@ export default function Calculator() {
                             <div>
                                 <MicroLabel>Offer verdict</MicroLabel>
                                 <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "4px" }}>
-                                    {r.city ? `${r.city}, ` : ""}{r.state} · {r.zip} · {r.hours}hr
+                                    {specLabel} · {r.city ? `${r.city}, ` : ""}{r.state} · {r.zip} · {r.hours}hr
                                 </div>
                                 {agency.trim() && (
                                     <div style={{ fontFamily: f.sans, fontSize: "12px", color: T.textTertiary, marginTop: "2px" }}>
@@ -916,8 +847,6 @@ export default function Calculator() {
                                 <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Weekly Gross</span>
                                 <span style={{ fontFamily: f.mono, fontSize: "16px", fontWeight: 900 }}>${r.weeklyGross.toLocaleString()}</span>
                             </div>
-
-                            {/* Stipend */}
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                                     <span style={{ fontFamily: f.sans, fontSize: "12px", color: T.primary, fontWeight: 700 }}>Tax-Free Stipend</span>
@@ -928,8 +857,6 @@ export default function Calculator() {
                                     GSA ceiling: ${r.gsaWeeklyMax.toLocaleString()}/wk · Target (90%): ${Math.round(r.targetStipendWeekly).toLocaleString()}/wk
                                 </div>
                             </div>
-
-                            {/* Taxable */}
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                                     <span style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary }}>Taxable ({r.hours}hr × ${r.taxableHourly}/hr)</span>
@@ -937,16 +864,11 @@ export default function Calculator() {
                                 </div>
                                 <ProgressBar value={r.taxableWeekly} max={r.weeklyGross} color={T.textTertiary} />
                             </div>
-
                             <div style={{ height: "1px", background: T.borderSubtle }} />
-
-                            {/* Net before insurance */}
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
                                 <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Est. Net (before insurance)</span>
                                 <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 900 }}>${r.netWeekly.toLocaleString()}</span>
                             </div>
-
-                            {/* Insurance deduction */}
                             {r.insuranceWeeklyMid > 0 && (
                                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                                     <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.moneyNegative }}>Insurance ({insLabel})</span>
@@ -955,14 +877,11 @@ export default function Calculator() {
                                     </span>
                                 </div>
                             )}
-
-                            {/* Net after insurance */}
                             <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", background: T.moneyPositiveBg, borderRadius: "8px", border: `1px solid ${T.moneyPositive}20` }}>
                                 <span style={{ fontFamily: f.sans, fontSize: "13px", fontWeight: 900, color: T.moneyPositive }}>Net after insurance</span>
                                 <span style={{ fontFamily: f.mono, fontSize: "16px", fontWeight: 900, color: T.moneyPositive }}>${r.netAfterInsuranceWeekly.toLocaleString()}/wk</span>
                             </div>
                         </div>
-
                         <div style={{ fontFamily: f.sans, fontSize: "10px", color: T.textTertiary, marginTop: "10px", padding: "6px 8px", background: T.surfaceRaised, borderRadius: "4px", lineHeight: 1.5 }}>
                             {r.taxMethod}
                         </div>
@@ -1026,9 +945,8 @@ export default function Calculator() {
                         New lookup
                     </button>
 
-                    {/* Footer */}
                     <footer style={{ fontFamily: f.sans, fontSize: "10px", color: T.textTertiary, lineHeight: 1.6, padding: "16px 0", borderTop: `1px solid ${T.borderSubtle}`, marginTop: "12px" }}>
-                        Pay data from nurses like you (protected under NLRA Section 7).
+                        Pay data from nurses and allied health like you (protected under NLRA Section 7).
                         Per diem rates from{" "}
                         <a href="https://www.gsa.gov/travel/plan-book/per-diem-rates" style={{ color: T.textTertiary }} target="_blank" rel="noopener noreferrer">GSA.gov</a>.
                         Housing data from{" "}
