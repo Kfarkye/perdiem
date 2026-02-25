@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { T, FONTS as f } from "@/lib/theme";
 import { STATE_NAMES } from "@/lib/gsa";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Travel Nurse Market Index — PerDiem.fyi",
@@ -31,7 +32,7 @@ export default function MarketIndexPage() {
             marginBottom: "24px",
           }}
         >
-          <a
+          <Link
             href="/"
             style={{
               display: "flex",
@@ -86,7 +87,7 @@ export default function MarketIndexPage() {
                 .fyi
               </span>
             </span>
-          </a>
+          </Link>
           <a
             href="/"
             style={{
@@ -140,7 +141,7 @@ export default function MarketIndexPage() {
           }}
         >
           {STATES.map(([abbr, name]) => (
-            <a
+            <Link
               key={abbr}
               href={`/market/us/${abbr.toLowerCase()}`}
               style={{
@@ -175,7 +176,7 @@ export default function MarketIndexPage() {
               >
                 {abbr}
               </span>
-            </a>
+            </Link>
           ))}
         </div>
 
