@@ -222,6 +222,8 @@ function Card({
         border: `1px solid ${T.border}`,
         borderRadius: "12px",
         padding: "20px",
+        boxShadow:
+          "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
         ...style,
       }}
     >
@@ -1099,8 +1101,7 @@ export default function ConstructionCalculator() {
               top: 0,
               zIndex: 10,
               background: T.bg,
-              padding: "12px 0 10px",
-              borderBottom: `1px solid ${T.borderSubtle}`,
+              padding: "12px 0 16px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -1118,31 +1119,6 @@ export default function ConstructionCalculator() {
             >
               <Logo />
             </button>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "10px",
-                  fontWeight: 900,
-                  color: T.textTertiary,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {" "}
-                Net after insurance
-              </div>
-              <div
-                style={{
-                  fontFamily: f.mono,
-                  fontSize: "18px",
-                  fontWeight: 900,
-                  color: T.moneyPositive,
-                }}
-              >
-                $${r.derived.net_after_insurance_weekly.toLocaleString()}/wk
-              </div>
-            </div>
           </div>
 
           {/* VERDICT */}
@@ -1556,15 +1532,15 @@ export default function ConstructionCalculator() {
             onClick={handleShare}
             style={{
               width: "100%",
-              marginTop: "12px",
+              marginTop: "16px",
               padding: "14px",
               borderRadius: "10px",
-              border: `2px solid ${T.primary}`,
-              background: "transparent",
-              color: T.primary,
+              border: "none",
+              background: T.primary,
+              color: "#fff",
               fontFamily: f.sans,
               fontSize: "15px",
-              fontWeight: 900,
+              fontWeight: 800,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -1577,7 +1553,7 @@ export default function ConstructionCalculator() {
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={T.primary}
+              stroke="#fff"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1594,16 +1570,17 @@ export default function ConstructionCalculator() {
             onClick={handleReset}
             style={{
               width: "100%",
-              marginTop: "10px",
+              marginTop: "12px",
               padding: "12px",
-              borderRadius: "10px",
-              border: `1px solid ${T.border}`,
-              background: T.surface,
+              background: "transparent",
+              border: "none",
               color: T.textSecondary,
               fontFamily: f.sans,
               fontSize: "14px",
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: "4px",
             }}
           >
             New lookup
