@@ -21,6 +21,7 @@ export interface TierInfo {
 export function getTierInfo(specialty: string): TierInfo {
   const s = specialty.toUpperCase();
   const tierA = [
+    "RN",
     "PT",
     "DPT",
     "OT",
@@ -37,7 +38,7 @@ export function getTierInfo(specialty: string): TierInfo {
     "BSN",
   ];
   const isTierA =
-    tierA.some((role) => s.includes(role)) &&
+    tierA.some((role) => s.includes(role) || s === role) &&
     !s.includes("PTA") &&
     !s.includes("OTA");
 
