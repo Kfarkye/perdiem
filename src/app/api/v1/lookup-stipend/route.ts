@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { lookupLocation, lookupGsaRates, lookupHudFmr, getGsaFiscalYear } from "@/lib/gsa";
-import { deriveFinancials, getMinTaxableHourly } from "@/lib/financials";
+import { deriveFinancials, getMinTaxableHourly, getTierInfo } from "@/lib/financials";
 import { createServiceClient } from "@/lib/supabase";
 import { estimateInsuranceWeekly, type InsurancePlan } from "@/lib/insurance";
 import {
@@ -205,7 +205,7 @@ export async function POST(req: Request) {
                 metadata: {
                     gsa_fiscal_year: gsa.fiscal_year,
                     hud_rent_source: hud ? `HUD · ${hud.county}` : "National Median Estimate",
-                    tax_method: `Flat 20% estimate on taxable portion (min $${getMinTaxableHourly(specialty)}/hr taxable base)`,
+                    tax_method: `Taxable base floored at $${getMinTaxableHourly(specialty)}/hr. ${getTierInfo(specialty).blsDesc}.`,
                     offer_verdict: {
                         stipend_pct_of_gsa: pct,
                         label: band.label,

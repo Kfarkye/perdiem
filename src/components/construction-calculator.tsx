@@ -441,10 +441,12 @@ export default function ConstructionCalculator() {
 
                     {/* VERDICT */}
                     <Card>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
                             <div>
-                                <MicroLabel>Per diem verdict</MicroLabel>
-                                <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "4px" }}>
+                                <div style={{ fontFamily: f.mono, fontSize: "36px", fontWeight: 900, color: cls.color, letterSpacing: "-0.02em", lineHeight: 1 }}>
+                                    {v.stipend_pct_of_gsa}%
+                                </div>
+                                <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "8px" }}>
                                     {tradeLabel} · {r.location.city ? `${r.location.city}, ` : ""}{r.location.state} · {c.schedule}
                                 </div>
                                 {agency.trim() && <div style={{ fontFamily: f.sans, fontSize: "12px", color: T.textTertiary, marginTop: "2px" }}>Agency: {agency}</div>}
@@ -452,16 +454,7 @@ export default function ConstructionCalculator() {
                             <GovBadge text={`GSA FY${r.gsa.fiscal_year}`} />
                         </div>
 
-                        <div style={{ padding: "10px 12px", borderRadius: "10px", background: `${cls.color}14`, border: `1px solid ${cls.color}30`, marginBottom: "14px" }}>
-                            <div style={{ fontFamily: f.sans, fontSize: "12px", fontWeight: 800, color: cls.color }}>
-                                {cls.label.toUpperCase()} · {v.stipend_pct_of_gsa}% of GSA
-                            </div>
-                            <div style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary, marginTop: "4px", lineHeight: 1.5 }}>
-                                {leaving
-                                    ? `Your per diem is ${v.stipend_pct_of_gsa}% of the ${v.gsa_comparison_basis?.includes("M&IE") ? "M&IE" : "GSA"} ceiling. Leaving ~$${Math.abs(delta)}/wk vs 90% target.`
-                                    : `Your per diem is ${v.stipend_pct_of_gsa}% of ${v.gsa_comparison_basis?.includes("M&IE") ? "M&IE ceiling" : "GSA max"} — ${cls.label.toLowerCase()} versus the typical ${v.typical_band} band.`}
-                            </div>
-                        </div>
+
 
                         {/* Waterfall */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -474,7 +467,7 @@ export default function ConstructionCalculator() {
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                                     <span style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary }}>
-                                        Straight ({c.straight_hours}hr × $${c.hourly_rate})
+                                        Base wages ({c.straight_hours}hr × $${c.hourly_rate})
                                     </span>
                                     <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 600 }}>$${c.straight_pay.toLocaleString()}</span>
                                 </div>
@@ -503,7 +496,7 @@ export default function ConstructionCalculator() {
                                 </div>
                                 <ProgressBar value={c.weekly_per_diem} max={c.weekly_gross_total} color={T.primary} />
                                 <div style={{ fontFamily: f.sans, fontSize: "10px", color: T.textTertiary, marginTop: "4px" }}>
-                                    GSA ceiling ({c.housing_model === "company" ? "M&IE only" : "full"}): $${r.derived.gsa_comparison_weekly.toLocaleString()}/wk · Target (90%): $${Math.round(v.target_stipend_weekly)}/wk
+                                    Federal per diem limit ({c.housing_model === "company" ? "M&IE only" : "full"}): $${r.derived.gsa_comparison_weekly.toLocaleString()}/wk · Target (90%): $${Math.round(v.target_stipend_weekly)}/wk
                                 </div>
                             </div>
 
@@ -538,17 +531,10 @@ export default function ConstructionCalculator() {
                                 <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>HUD 1BR Fair Market Rent</span>
                                 <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 700 }}>$${r.housing.hud_fmr_1br.toLocaleString()}/mo</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                                <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Your Monthly Per Diem (est.)</span>
-                                <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 700 }}>$${Math.round(r.housing.stipend_monthly_est).toLocaleString()}/mo</span>
-                            </div>
                             <div style={{ height: "1px", background: T.borderSubtle, margin: "8px 0" }} />
-                            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: r.housing.stipend_surplus_monthly >= 0 ? T.moneyPositiveBg : T.moneyNegativeBg, borderRadius: "6px" }}>
-                                <span style={{ fontFamily: f.sans, fontSize: "13px", fontWeight: 800, color: r.housing.stipend_surplus_monthly >= 0 ? T.moneyPositive : T.moneyNegative }}>
-                                    {r.housing.stipend_surplus_monthly >= 0 ? "Surplus" : "Shortfall"}
-                                </span>
-                                <span style={{ fontFamily: f.mono, fontSize: "16px", fontWeight: 900, color: r.housing.stipend_surplus_monthly >= 0 ? T.moneyPositive : T.moneyNegative }}>
-                                    {r.housing.stipend_surplus_monthly >= 0 ? "+" : ""}$${Math.round(r.housing.stipend_surplus_monthly).toLocaleString()}/mo
+                            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: r.housing.stipend_monthly_est >= r.housing.hud_fmr_1br ? T.moneyPositiveBg : T.moneyNegativeBg, borderRadius: "6px" }}>
+                                <span style={{ fontFamily: f.sans, fontSize: "13px", fontWeight: 800, color: r.housing.stipend_monthly_est >= r.housing.hud_fmr_1br ? T.moneyPositive : T.moneyNegative }}>
+                                    Stipend covers {Math.round((r.housing.stipend_monthly_est / Math.max(r.housing.hud_fmr_1br, 1)) * 100)}%
                                 </span>
                             </div>
                         </Card>

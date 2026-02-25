@@ -13,12 +13,24 @@ import type {
 const TAX_RATE_ESTIMATE = 0.20;
 const CONTRACT_WEEKS = 13;
 
-export function getMinTaxableHourly(specialty: string): number {
+export interface TierInfo {
+    floor: number;
+    blsDesc: string;
+}
+
+export function getTierInfo(specialty: string): TierInfo {
     const s = specialty.toUpperCase();
-    if (s.includes("TECH") || s.includes("LPN") || s.includes("LVN") || s.includes("MA")) {
-        return 15;
+    const tierA = ["PT", "DPT", "OT", "SLP", "MLS", "CRNA", "NP", "APRN", "PHARMD", "LCSW", "RD", "DIETITIAN", "AUD", "BSN"];
+    const isTierA = tierA.some(role => s.includes(role)) && !s.includes("PTA") && !s.includes("OTA");
+
+    if (isTierA) {
+        return { floor: 20, blsDesc: "Tier A (Bachelor's degree or higher BLS requirement)" };
     }
-    return 20;
+    return { floor: 15, blsDesc: "Tier B (Associate degree or certificate BLS requirement)" };
+}
+
+export function getMinTaxableHourly(specialty: string): number {
+    return getTierInfo(specialty).floor;
 }
 
 export function deriveGsaTotals(

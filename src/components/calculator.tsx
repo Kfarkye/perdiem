@@ -816,10 +816,12 @@ export default function Calculator() {
 
                     {/* ━━━ VERDICT CARD ━━━ */}
                     <Card>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
                             <div>
-                                <MicroLabel>Offer verdict</MicroLabel>
-                                <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "4px" }}>
+                                <div style={{ fontFamily: f.mono, fontSize: "36px", fontWeight: 900, color: cls.color, letterSpacing: "-0.02em", lineHeight: 1 }}>
+                                    {r.pctOfMax}%
+                                </div>
+                                <div style={{ fontFamily: f.sans, fontSize: "14px", color: T.textSecondary, marginTop: "8px" }}>
                                     {specLabel} · {r.city ? `${r.city}, ` : ""}{r.state} · {r.zip} · {r.hours}hr
                                 </div>
                                 {agency.trim() && (
@@ -831,15 +833,7 @@ export default function Calculator() {
                             <GovBadge text={`GSA FY${r.fiscalYear}`} />
                         </div>
 
-                        {/* Verdict banner */}
-                        <div style={{ padding: "10px 12px", borderRadius: "10px", background: `${cls.color}14`, border: `1px solid ${cls.color}30`, marginBottom: "14px" }}>
-                            <div style={{ fontFamily: f.sans, fontSize: "12px", fontWeight: 800, color: cls.color, letterSpacing: "0.02em" }}>
-                                {cls.label.toUpperCase()} · {r.pctOfMax}% of GSA
-                            </div>
-                            <div style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary, marginTop: "4px", lineHeight: 1.5 }}>
-                                {verdictLine}
-                            </div>
-                        </div>
+
 
                         {/* Waterfall */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -854,19 +848,19 @@ export default function Calculator() {
                                 </div>
                                 <ProgressBar value={r.stipendWeekly} max={r.weeklyGross} color={T.primary} />
                                 <div style={{ fontFamily: f.sans, fontSize: "10px", color: T.textTertiary, marginTop: "4px" }}>
-                                    GSA ceiling: ${r.gsaWeeklyMax.toLocaleString()}/wk · Target (90%): ${Math.round(r.targetStipendWeekly).toLocaleString()}/wk
+                                    Federal per diem limit: ${r.gsaWeeklyMax.toLocaleString()}/wk · Target (90%): ${Math.round(r.targetStipendWeekly).toLocaleString()}/wk
                                 </div>
                             </div>
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                                    <span style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary }}>Taxable ({r.hours}hr × ${r.taxableHourly}/hr)</span>
+                                    <span style={{ fontFamily: f.sans, fontSize: "12px", color: T.textSecondary }}>Base wages ({r.hours}hr × ${r.taxableHourly}/hr)</span>
                                     <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 600, color: T.textSecondary }}>${r.taxableWeekly.toLocaleString()}</span>
                                 </div>
                                 <ProgressBar value={r.taxableWeekly} max={r.weeklyGross} color={T.textTertiary} />
                             </div>
                             <div style={{ height: "1px", background: T.borderSubtle }} />
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Est. Net (before insurance)</span>
+                                <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Estimated take-home</span>
                                 <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 900 }}>${r.netWeekly.toLocaleString()}</span>
                             </div>
                             {r.insuranceWeeklyMid > 0 && (
@@ -897,17 +891,10 @@ export default function Calculator() {
                             <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>HUD 1BR Fair Market Rent</span>
                             <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 700 }}>${r.housing1br.toLocaleString()}/mo</span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                            <span style={{ fontFamily: f.sans, fontSize: "13px", color: T.textSecondary }}>Your Monthly Stipend (est.)</span>
-                            <span style={{ fontFamily: f.mono, fontSize: "14px", fontWeight: 700 }}>${Math.round(r.stipendMonthlyEst).toLocaleString()}/mo</span>
-                        </div>
                         <div style={{ height: "1px", background: T.borderSubtle, margin: "8px 0" }} />
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: r.stipendSurplus >= 0 ? T.moneyPositiveBg : T.moneyNegativeBg, borderRadius: "6px" }}>
-                            <span style={{ fontFamily: f.sans, fontSize: "13px", fontWeight: 800, color: r.stipendSurplus >= 0 ? T.moneyPositive : T.moneyNegative }}>
-                                {r.stipendSurplus >= 0 ? "Surplus After Rent" : "Shortfall"}
-                            </span>
-                            <span style={{ fontFamily: f.mono, fontSize: "16px", fontWeight: 900, color: r.stipendSurplus >= 0 ? T.moneyPositive : T.moneyNegative }}>
-                                {r.stipendSurplus >= 0 ? "+" : ""}${Math.round(r.stipendSurplus).toLocaleString()}/mo
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: r.stipendMonthlyEst >= r.housing1br ? T.moneyPositiveBg : T.moneyNegativeBg, borderRadius: "6px" }}>
+                            <span style={{ fontFamily: f.sans, fontSize: "13px", fontWeight: 800, color: r.stipendMonthlyEst >= r.housing1br ? T.moneyPositive : T.moneyNegative }}>
+                                Stipend covers {Math.round((r.stipendMonthlyEst / Math.max(r.housing1br, 1)) * 100)}%
                             </span>
                         </div>
                     </Card>
