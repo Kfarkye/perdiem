@@ -65,6 +65,63 @@ const DATA: Record<string, SpecialtyData> = {
             { state: "ID", travel: 792, rent: 208, verified: true, n: 1 },
         ],
     },
+    OT: {
+        label: "Occupational Therapist",
+        soc: "29-1122",
+        staffWeekly: 1853, // $96,370 / 52
+        states: [
+            { state: "CA", travel: 2310, rent: 485, verified: false },
+            { state: "NY", travel: 2080, rent: 404, verified: false },
+            { state: "TX", travel: 1915, rent: 266, verified: false },
+            { state: "FL", travel: 1900, rent: 335, verified: false },
+        ],
+    },
+    SLP: {
+        label: "Speech-Language Pathologist",
+        soc: "29-1127",
+        staffWeekly: 1717, // $89,290 / 52
+        states: [
+            { state: "CA", travel: 2787, rent: 485, verified: false },
+            { state: "TX", travel: 2655, rent: 266, verified: false },
+            { state: "MA", travel: 2489, rent: 439, verified: false },
+            { state: "CO", travel: 2326, rent: 358, verified: false },
+            { state: "NY", travel: 2200, rent: 404, verified: false },
+            { state: "OR", travel: 2099, rent: 312, verified: false },
+        ],
+    },
+    RAD: {
+        label: "Radiologic Technologist",
+        soc: "29-2034",
+        staffWeekly: 1493, // $77,660 / 52
+        states: [
+            { state: "WA", travel: 2610, rent: 346, verified: false },
+            { state: "CA", travel: 2533, rent: 485, verified: false },
+            { state: "NY", travel: 2400, rent: 404, verified: false },
+            { state: "TX", travel: 1705, rent: 266, verified: false },
+            { state: "FL", travel: 1368, rent: 335, verified: false },
+        ],
+    },
+    LPN: {
+        label: "Licensed Practical Nurse",
+        soc: "29-2061",
+        staffWeekly: 997, // $51,850 / 52
+        states: [
+            { state: "OR", travel: 1816, rent: 312, verified: false },
+            { state: "CA", travel: 1779, rent: 485, verified: false },
+            { state: "FL", travel: 1520, rent: 335, verified: false },
+            { state: "TX", travel: 1488, rent: 266, verified: false },
+        ],
+    },
+    CNA: {
+        label: "Certified Nursing Assistant",
+        soc: "31-1131",
+        staffWeekly: 697, // $36,220 / 52
+        states: [
+            { state: "CA", travel: 1200, rent: 485, verified: false },
+            { state: "CO", travel: 1100, rent: 358, verified: false },
+            { state: "WA", travel: 1070, rent: 346, verified: false },
+        ],
+    },
 };
 
 /* ━━━ TYPES ━━━ */

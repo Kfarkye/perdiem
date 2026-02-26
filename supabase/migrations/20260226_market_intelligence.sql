@@ -82,11 +82,49 @@ VALUES
     ('CA','California','PHLEB',1181,1010,1348,4,true,'Verified: 4 Aya job board listings avg. Feb 2026'),
     ('ID','Idaho','PHLEB',792,677,906,1,true,'Verified: 1 Aya job board listing. Feb 2026'),
 
+    -- ── OT (Travel Occupational Therapist) ──
+    ('CA','California','OT',2310,2100,2500,3,false,'ZipRecruiter $2,310; Vivian $2,342. Feb 2026'),
+    ('NY','New York','OT',2080,1800,2393,3,false,'ZipRecruiter $2,080; Indeed $2,393. Feb 2026'),
+    ('TX','Texas','OT',1915,1386,2638,3,false,'ZipRecruiter $2,041; AMN $1,789. Feb 2026'),
+    ('FL','Florida','OT',1900,1600,2200,2,false,'National avg adjusted. Feb 2026'),
+
+    -- ── SLP (Travel Speech-Language Pathologist) ──
+    ('CA','California','SLP',2787,2350,3200,2,false,'Vivian $2,787 (20% above US avg). Feb 2026'),
+    ('TX','Texas','SLP',2655,2400,2850,1,false,'Vivian $2,655. Feb 2026'),
+    ('NY','New York','SLP',2200,1900,2500,2,false,'ZipRecruiter; Indeed avg. Feb 2026'),
+    ('CO','Colorado','SLP',2326,2100,2600,1,false,'Vivian $2,326. Feb 2026'),
+    ('OR','Oregon','SLP',2099,1800,2400,1,false,'Vivian $2,099. Feb 2026'),
+    ('MA','Massachusetts','SLP',2489,2200,2800,1,false,'Indeed $2,489. Feb 2026'),
+
+    -- ── RAD (Travel Radiologic Technologist) ──
+    ('CA','California','RAD',2533,2200,2865,3,false,'Advantis; ZipRecruiter; TLC. Feb 2026'),
+    ('NY','New York','RAD',2400,2002,3176,2,false,'Advantis $2,002-$3,176. Feb 2026'),
+    ('WA','Washington','RAD',2610,2300,2900,1,false,'ZipRecruiter $2,610 (Seattle). Feb 2026'),
+    ('TX','Texas','RAD',1705,1400,2705,2,false,'Advantis $1,705 avg; top $2,705. Feb 2026'),
+    ('FL','Florida','RAD',1368,1278,2170,2,false,'Salary.com $1,278; Advantis $2,170 top. Feb 2026'),
+
+    -- ── LPN (Travel Licensed Practical Nurse) ──
+    ('CA','California','LPN',1779,1500,2100,2,false,'Vivian $1,779. Feb 2026'),
+    ('OR','Oregon','LPN',1816,1600,2050,1,false,'Vivian $1,816. Feb 2026'),
+    ('TX','Texas','LPN',1488,1200,1800,2,false,'Vivian $1,488. Feb 2026'),
+    ('FL','Florida','LPN',1520,1300,1750,1,false,'Vivian $1,520. Feb 2026'),
+
+    -- ── CNA (Travel Certified Nursing Assistant) ──
+    ('CA','California','CNA',1200,1000,1500,2,false,'Wanderly; Vivian. Feb 2026'),
+    ('CO','Colorado','CNA',1100,900,1300,1,false,'Wanderly. Feb 2026'),
+    ('WA','Washington','CNA',1070,850,1300,1,false,'Vivian $1,070. Feb 2026'),
+
     -- ── National averages (all specialties) ──
     ('US','National','RN',2294,1800,3000,5,false,'Vivian Dec 2024 avg $2,294. Cross-platform median. Feb 2026'),
     ('US','National','RRT',2058,1758,2526,4,false,'ZipRecruiter $1,758; Vivian $2,235; Indeed $2,111. Feb 2026'),
     ('US','National','PT',2475,2054,2800,3,false,'Vivian $2,475; TLC $2,054. Feb 2026'),
-    ('US','National','CST',1931,1503,2056,3,false,'Vivian $2,056; ZipRecruiter $1,503; Vivian $1,931. Feb 2026')
+    ('US','National','CST',1931,1503,2056,3,false,'Vivian $2,056; ZipRecruiter $1,503; Vivian $1,931. Feb 2026'),
+    ('US','National','PHLEB',987,792,1181,2,false,'Avg of CA verified ($1,181) and ID verified ($792). Feb 2026'),
+    ('US','National','OT',2081,1789,2342,4,false,'TLC $2,081; ZipRecruiter $2,245; Vivian $2,342. Feb 2026'),
+    ('US','National','SLP',2026,1350,2787,4,false,'ZipRecruiter $2,026; Vivian $2,019; Indeed $2,125. Feb 2026'),
+    ('US','National','RAD',2224,1368,2865,4,false,'ZipRecruiter; TLC; Advantis; Nomad. Feb 2026'),
+    ('US','National','LPN',1448,1200,1816,3,false,'Vivian $1,679; ZipRecruiter $1,216. Feb 2026'),
+    ('US','National','CNA',1070,844,1500,3,false,'Vivian $1,070; ZipRecruiter $934; Wanderly $1,497. Feb 2026')
 ON CONFLICT (state_abbr, specialty) DO NOTHING;
 
 -- ━━━ SEED: Housing costs by state (HUD FMR FY2026, 1BR) ━━━
