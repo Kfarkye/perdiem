@@ -827,7 +827,7 @@ export default function Calculator() {
             maxWidth: "360px",
             display: "flex",
             flexDirection: "column",
-            gap: "18px",
+            gap: "20px",
             alignItems: "center",
           }}
         >
@@ -839,24 +839,28 @@ export default function Calculator() {
                 fontSize: "24px",
                 fontWeight: 900,
                 letterSpacing: "-0.02em",
+                color: T.text,
               }}
             >
-              Is this offer good?
+              Is this a good pay package?
             </div>
             <div
               style={{
                 fontFamily: f.sans,
                 fontSize: "14px",
                 color: T.textSecondary,
-                marginTop: "6px",
-                lineHeight: 1.5,
+                marginTop: "8px",
+                lineHeight: 1.6,
               }}
             >
-              ZIP → profession → offer → real net after insurance.
+              Calculate your true take-home pay after taxes and insurance.
             </div>
           </div>
+          {/* Spacer between intro and form */}
+          <div style={{ height: "4px" }} />
           <div style={{ width: "100%" }}>
             <label
+              htmlFor="zip-input"
               style={{
                 fontFamily: f.sans,
                 fontSize: "12px",
@@ -866,9 +870,10 @@ export default function Calculator() {
                 marginBottom: "6px",
               }}
             >
-              Assignment ZIP
+              Assignment ZIP code
             </label>
             <input
+              id="zip-input"
               value={zip}
               onChange={(e) =>
                 setZip(e.target.value.replace(/\D/g, "").slice(0, 5))
@@ -889,8 +894,9 @@ export default function Calculator() {
                 background: T.surface,
                 color: T.text,
                 outline: "none",
-                textAlign: "center" as const,
-                letterSpacing: "0.1em",
+                textAlign: "left" as const,
+                letterSpacing: "0.04em",
+                transition: "border-color 0.2s ease",
               }}
             />
           </div>
@@ -902,15 +908,26 @@ export default function Calculator() {
               fontFamily: f.sans,
               fontSize: "15px",
               fontWeight: 900,
-              padding: "12px",
+              padding: "14px",
               borderRadius: "10px",
               border: "none",
               background: zip.length === 5 ? T.primary : T.surfaceRaised,
               color: zip.length === 5 ? "#fff" : T.textTertiary,
               cursor: zip.length === 5 ? "pointer" : "default",
+              transition: "background 0.2s ease, color 0.2s ease, transform 0.1s ease",
+              transform: zip.length === 5 ? "none" : "none",
+            }}
+            onMouseDown={(e) => {
+              if (zip.length === 5) (e.currentTarget.style.transform = "scale(0.98)");
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = "none";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
             }}
           >
-            Next →
+            Calculate Pay
           </button>
         </div>
       </div>
