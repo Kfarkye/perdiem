@@ -1200,7 +1200,7 @@ export default function Calculator() {
                 display: "block",
               }}
             >
-              Helps build market intel for this facility. Never shared publicly.
+              Optional — used to improve pay data accuracy.
             </span>
           </Card>
 
