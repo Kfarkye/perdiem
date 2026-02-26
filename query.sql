@@ -1,0 +1,9 @@
+WITH most_expensive AS (
+  SELECT metro_area, ROUND(AVG(zori_rent), 0) as avg_zori_rent, ROUND(AVG(fmr_1br), 0) as avg_hud_baseline, ROUND(AVG(zori_rent)/AVG(fmr_1br), 2) as ratio, 'most_expensive' as metric
+  FROM zip_housing_costs WHERE zori_rent IS NOT NULL GROUP BY metro_area HAVING COUNT(zip) > 5 ORDER BY ratio DESC LIMIT 5
+),
+most_profitable AS (
+  SELECT metro_area, ROUND(AVG(zori_rent), 0) as avg_zori_rent, ROUND(AVG(fmr_1br), 0) as avg_hud_baseline, ROUND(AVG(fmr_1br)/AVG(zori_rent), 2) as ratio, 'most_profitable' as metric
+  FROM zip_housing_costs WHERE zori_rent IS NOT NULL AND fmr_1br > zori_rent GROUP BY metro_area HAVING COUNT(zip) > 5 ORDER BY ratio DESC LIMIT 5
+)
+SELECT * FROM most_expensive UNION ALL SELECT * FROM most_profitable;
