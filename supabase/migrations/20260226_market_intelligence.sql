@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS market_housing_by_state (
     adjusted_weekly INTEGER GENERATED ALWAYS AS (
         ROUND((hud_fmr_1br / 4.33) * col_multiplier)
     ) STORED,
+    seasonal_peak_months TEXT,              -- e.g. 'Nov-Apr' for snowbird states
+    seasonal_multiplier NUMERIC(3,2),      -- peak-season housing markup (e.g. 1.40 = +40%)
+    seasonal_note TEXT,                     -- explanation of seasonal impact
     fiscal_year INTEGER NOT NULL DEFAULT 2026,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -138,28 +141,28 @@ ON CONFLICT (state_abbr, specialty) DO NOTHING;
 --   flights home, inflated grocery prices, isolation premium
 --   Default 1.00 for Lower 48 driveable states
 INSERT INTO market_housing_by_state
-    (state_abbr, state_name, hud_fmr_1br, col_multiplier, col_note)
+    (state_abbr, state_name, hud_fmr_1br, col_multiplier, col_note, seasonal_peak_months, seasonal_multiplier, seasonal_note)
 VALUES
-    ('CA','California',2100, 1.00, NULL),
-    ('TX','Texas',1150, 1.00, NULL),
-    ('FL','Florida',1450, 1.00, NULL),
-    ('NY','New York',1750, 1.00, NULL),
-    ('WA','Washington',1500, 1.00, NULL),
-    ('AZ','Arizona',1200, 1.00, NULL),
-    ('IL','Illinois',1100, 1.00, NULL),
-    ('PA','Pennsylvania',1050, 1.00, NULL),
-    ('GA','Georgia',1200, 1.00, NULL),
-    ('MA','Massachusetts',1900, 1.00, NULL),
-    ('NJ','New Jersey',1600, 1.00, NULL),
-    ('AK','Alaska',1341, 1.35, 'Flights $600+ RT/13wk; groceries 2-3× Lower 48; limited transit. Nome FMR used.'),
-    ('HI','Hawaii',1800, 1.30, 'Flights $800+ RT; groceries 1.8× mainland; island isolation premium.'),
-    ('OR','Oregon',1350, 1.00, NULL),
-    ('NV','Nevada',1300, 1.00, NULL),
-    ('CO','Colorado',1550, 1.00, NULL),
-    ('OH','Ohio',900, 1.00, NULL),
-    ('NC','North Carolina',1100, 1.00, NULL),
-    ('MI','Michigan',950, 1.00, NULL),
-    ('VA','Virginia',1400, 1.00, NULL),
-    ('SC','South Carolina',1050, 1.00, NULL),
-    ('ID','Idaho',900, 1.00, NULL)
+    ('CA','California',2100, 1.00, NULL, NULL, NULL, NULL),
+    ('TX','Texas',1150, 1.00, NULL, NULL, NULL, NULL),
+    ('FL','Florida',1450, 1.00, NULL, 'Nov-Apr', 1.40, 'Snowbird season — furnished rentals spike 30-40%. Furnished Finder/Airbnb inventory tightens.'),
+    ('NY','New York',1750, 1.00, NULL, NULL, NULL, NULL),
+    ('WA','Washington',1500, 1.00, NULL, NULL, NULL, NULL),
+    ('AZ','Arizona',1200, 1.00, NULL, 'Nov-Mar', 1.35, 'Snowbird season — Phoenix/Scottsdale/Tucson short-term doubles. Locals sublease at premium.'),
+    ('IL','Illinois',1100, 1.00, NULL, 'Nov-Mar', 1.20, 'Chicago winter — heating costs spike, utilities baked into furnished rentals. Flight disruptions add rebooking cost.'),
+    ('PA','Pennsylvania',1050, 1.00, NULL, NULL, NULL, NULL),
+    ('GA','Georgia',1200, 1.00, NULL, NULL, NULL, NULL),
+    ('MA','Massachusetts',1900, 1.00, NULL, 'Jun-Sep', 1.45, 'Cape Cod/Islands summer — short-term rentals 2-3× winter rates. Hospital assignments near coast hit hardest.'),
+    ('NJ','New Jersey',1600, 1.00, NULL, 'Jun-Sep', 1.25, 'Shore towns summer — furnished rentals spike along coast. Interior unaffected.'),
+    ('AK','Alaska',1341, 1.35, 'Flights $600+ RT/13wk; groceries 2-3× Lower 48; limited transit. Nome FMR used.', 'Jun-Aug', 1.15, 'Tourism season fills rooms; winter cheaper rent but heating $300+/mo.'),
+    ('HI','Hawaii',1800, 1.30, 'Flights $800+ RT; groceries 1.8× mainland; island isolation premium.', 'Dec-Mar', 1.20, 'Peak tourist season inflates Airbnb/furnished. Summer slightly cheaper.'),
+    ('OR','Oregon',1350, 1.00, NULL, NULL, NULL, NULL),
+    ('NV','Nevada',1300, 1.00, NULL, NULL, NULL, NULL),
+    ('CO','Colorado',1550, 1.00, NULL, 'Dec-Mar', 1.35, 'Ski towns (Vail, Summit, Eagle Co) — furnished $3k+/mo. Denver metro unaffected.'),
+    ('OH','Ohio',900, 1.00, NULL, NULL, NULL, NULL),
+    ('NC','North Carolina',1100, 1.00, NULL, NULL, NULL, NULL),
+    ('MI','Michigan',950, 1.00, NULL, NULL, NULL, NULL),
+    ('VA','Virginia',1400, 1.00, NULL, NULL, NULL, NULL),
+    ('SC','South Carolina',1050, 1.00, NULL, NULL, NULL, NULL),
+    ('ID','Idaho',900, 1.00, NULL, NULL, NULL, NULL)
 ON CONFLICT (state_abbr) DO NOTHING;
