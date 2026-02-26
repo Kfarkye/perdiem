@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Travel Rate vs. Housing Cost</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+            background: #FFFFFF;
+            color: #000000;
+            padding: 48px 24px 80px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+        }
+
+        .label {
+            font-size: 11px;
+            font-weight: 500;
+            color: #8E8E93;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 500;
+            color: #000;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #8E8E93;
+            margin-bottom: 48px;
+            line-height: 1.5;
+        }
+
+        .chart-area {
+            position: relative;
+            width: 100%;
+        }
+
+        /* ── Bars ── */
+        .bar-group {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #E5E5EA;
+        }
+
+        .bar-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .bar-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #000;
+        }
+
+        .bar-travel {
+            font-size: 11px;
+            color: #8E8E93;
+            font-weight: 400;
+        }
+
+        .bar {
+            width: 100%;
+            max-width: 56px;
+            border-radius: 4px 4px 0 0;
+            transition: height 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .bar-name {
+            font-size: 11px;
+            font-weight: 500;
+            color: #8E8E93;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .bar-staff {
+            font-size: 10px;
+            color: #C7C7CC;
+            margin-top: 2px;
+        }
+
+        /* ── Rent lines ── */
+        .rent-section {
+            margin-top: 0;
+        }
+
+        .rent-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 14px 0;
+            border-bottom: 1px solid #E5E5EA;
+        }
+
+        .rent-row:last-child {
+            border-bottom: none;
+        }
+
+        .rent-city {
+            font-size: 15px;
+            font-weight: 400;
+            color: #000;
+        }
+
+        .rent-values {
+            display: flex;
+            gap: 24px;
+            align-items: baseline;
+        }
+
+        .rent-monthly {
+            font-size: 15px;
+            font-weight: 500;
+            color: #000;
+        }
+
+        .rent-weekly {
+            font-size: 13px;
+            color: #8E8E93;
+        }
+
+        /* ── Insight ── */
+        .insight {
+            margin-top: 48px;
+            padding: 20px 0;
+        }
+
+        .insight-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #000;
+            margin-bottom: 6px;
+        }
+
+        .insight-text {
+            font-size: 14px;
+            color: #8E8E93;
+            line-height: 1.6;
+        }
+
+        .insight-text strong {
+            color: #000;
+            font-weight: 500;
+        }
+
+        .source {
+            font-size: 11px;
+            color: #C7C7CC;
+            margin-top: 48px;
+            line-height: 1.6;
+        }
+
+        /* ── Chart wrapper ── */
+        .bars-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+            height: 280px;
+            padding: 0 8px;
+            position: relative;
+        }
+
+        .bar-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+
+        /* Rent reference lines overlaid on chart */
+        .rent-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            border-top: 1px dashed #E5E5EA;
+        }
+
+        .rent-line-label {
+            position: absolute;
+            right: 0;
+            top: -16px;
+            font-size: 10px;
+            color: #C7C7CC;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <div class="label">Market intelligence</div>
+        <h1>Weekly travel rate vs. housing cost</h1>
+        <div class="subtitle">
+            Verified contract data and BLS OES May 2024 staff medians.
+            All rates gross weekly. Housing from HUD Fair Market Rent.
+        </div>
+
+        <!-- ━━━ BAR CHART ━━━ -->
+        <div class="label" style="margin-bottom: 16px;">Weekly gross by specialty</div>
+        <div class="bars-container" id="chart">
+            <!-- Rent reference lines -->
+            <!-- JS will place these -->
+        </div>
+        <div class="bar-group" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+            <!-- legend row rendered by JS -->
+        </div>
+
+        <div style="height: 48px;"></div>
+
+        <!-- ━━━ HOUSING TABLE ━━━ -->
+        <div class="label" style="margin-bottom: 12px;">Average monthly rent (1BR)</div>
+        <div class="rent-section" id="rents"></div>
+
+        <div style="height: 48px;"></div>
+
+        <!-- ━━━ INSIGHT ━━━ -->
+        <div class="label" style="margin-bottom: 12px;">What this means</div>
+        <div class="insight" id="insights"></div>
+
+        <div class="source" id="source"></div>
+
+    </div>
+
+    <script>
+        // ── DATA ──
+        const specialties = [
+            { code: "RRT", label: "RRT", travel: 2559, staff: 1535, verified: true },
+            { code: "CST", label: "Surg Tech", travel: 1304, staff: null, verified: true },
+            { code: "RN", label: "RN", travel: null, staff: 1691, verified: false },
+            { code: "PT", label: "PT", travel: null, staff: 1943, verified: false },
+            { code: "OT", label: "OT", travel: null, staff: 1853, verified: false },
+            { code: "SLP", label: "SLP", travel: null, staff: 1717, verified: false },
+            { code: "RAD", label: "Rad Tech", travel: null, staff: 1493, verified: false },
+            { code: "LPN", label: "LPN", travel: null, staff: 997, verified: false },
+        ];
+
+        const markets = [
+            { city: "San Francisco, CA", rent: 2251 },
+            { city: "Los Angeles, CA", rent: 1871 },
+            { city: "Seattle, WA", rent: 1785 },
+            { city: "Portland, OR", rent: 1468 },
+            { city: "Richland, WA", rent: 1268 },
+            { city: "Salinas, CA", rent: 1614 },
+        ];
+
+        // ── RENDER CHART ──
+        const chart = document.getElementById("chart");
+        const maxVal = 2800;
+
+        // Add rent reference lines
+        const rentLines = [
+            { label: "SF rent/wk", value: Math.round(2251 / 4.33) },
+            { label: "LA rent/wk", value: Math.round(1871 / 4.33) },
+        ];
+        rentLines.forEach(rl => {
+            const pct = (rl.value / maxVal) * 100;
+            const line = document.createElement("div");
+            line.className = "rent-line";
+            line.style.bottom = pct + "%";
+            line.innerHTML = `<span class="rent-line-label">${rl.label} · $${rl.value}</span>`;
+            chart.appendChild(line);
+        });
+
+        specialties.forEach(s => {
+            const col = document.createElement("div");
+            col.className = "bar-col";
+
+            const rate = s.travel || Math.round(s.staff * 1.45); // estimate travel premium at 1.45x for unverified
+            const height = (rate / maxVal) * 220;
+            const color = s.verified ? "#000000" : "#C7C7CC";
+
+            col.innerHTML = `
+    <div class="bar-value"${!s.verified ? ' style="color:#8E8E93"' : ''}>$${rate.toLocaleString()}</div>
+    ${s.verified ? '<div class="bar-travel">verified</div>' : '<div class="bar-travel">est.</div>'}
+    <div class="bar" style="height:${height}px; background:${color};"></div>
+    <div class="bar-name">${s.label}</div>
+    ${s.staff ? `<div class="bar-staff">staff $${s.staff.toLocaleString()}</div>` : ''}
+  `;
+            chart.appendChild(col);
+        });
+
+        // ── RENDER RENTS ──
+        const rentsEl = document.getElementById("rents");
+        markets.forEach(m => {
+            const weekly = Math.round(m.rent / 4.33);
+            const row = document.createElement("div");
+            row.className = "rent-row";
+            row.innerHTML = `
+    <span class="rent-city">${m.city}</span>
+    <div class="rent-values">
+      <span class="rent-monthly">$${m.rent.toLocaleString()}/mo</span>
+      <span class="rent-weekly">$${weekly}/wk</span>
+    </div>
+  `;
+            rentsEl.appendChild(row);
+        });
+
+        // ── RENDER INSIGHTS ──
+        const insightsEl = document.getElementById("insights");
+        const richlandWeekly = Math.round(1268 / 4.33);
+        const sfWeekly = Math.round(2251 / 4.33);
+        const rrtSurplus = 2559 - richlandWeekly;
+        const cstSfSurplus = 1304 - sfWeekly;
+
+        const insights = [
+            {
+                title: "RRT in Richland, WA",
+                text: `$2,559/wk gross against $${richlandWeekly}/wk rent = <strong>$${rrtSurplus.toLocaleString()} weekly surplus</strong>. Mid-market assignments dominate travel ROI.`
+            },
+            {
+                title: "Surg Tech in San Francisco",
+                text: `$1,304/wk gross against $${sfWeekly}/wk rent = <strong>$${cstSfSurplus.toLocaleString()} weekly surplus</strong>. High COL compresses take-home by 65% vs. a low-COL market.`
+            },
+            {
+                title: "The travel premium",
+                text: `RRT travel rate ($2,559) is <strong>67% above</strong> the BLS staff median ($1,535). This premium is the core value proposition of travel healthcare.`
+            },
+        ];
+
+        insights.forEach(i => {
+            const div = document.createElement("div");
+            div.style.marginBottom = "20px";
+            div.innerHTML = `
+    <div class="insight-title">${i.title}</div>
+    <div class="insight-text">${i.text}</div>
+  `;
+            insightsEl.appendChild(div);
+        });
+
+        // ── SOURCE ──
+        document.getElementById("source").innerHTML = `
+  Verified rates from anonymized Aya Healthcare contracts (Feb 2026).
+  Staff medians from BLS OES May 2024. Estimated travel rates use 1.45× staff median.
+  Housing from HUD FMR FY2026. PerDiem.fyi
+`;
+    </script>
+</body>
+
+</html>
