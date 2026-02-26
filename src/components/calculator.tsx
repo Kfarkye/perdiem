@@ -78,6 +78,7 @@ interface DisplayResult {
   taxableWeekly: number;
   taxableHourly: number;
   netWeekly: number;
+  taxEstimateWeekly: number;
   pctOfMax: number;
   deltaToTypicalWeekly: number;
   targetStipendWeekly: number;
@@ -112,6 +113,7 @@ function mapApiToDisplay(api: ApiResult): DisplayResult {
     taxableWeekly: api.breakdown.taxable_weekly,
     taxableHourly: api.breakdown.taxable_hourly,
     netWeekly: api.breakdown.net_weekly,
+    taxEstimateWeekly: api.breakdown.tax_estimate_weekly,
     pctOfMax: api.negotiation.pct_of_max ?? 0,
     deltaToTypicalWeekly: ov?.delta_to_typical_weekly ?? 0,
     targetStipendWeekly: ov?.target_stipend_weekly ?? 0,
@@ -565,6 +567,8 @@ export default function Calculator() {
   const [gsaPreview, setGsaPreview] = useState<ApiResult | null>(null);
   const [result, setResult] = useState<DisplayResult | null>(null);
   const [scriptCopied, setScriptCopied] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showAdvisories, setShowAdvisories] = useState(false);
 
   // When specialty changes, update hours to default for that profession
   const handleSpecialtyChange = useCallback((val: string) => {
@@ -1350,52 +1354,100 @@ export default function Calculator() {
   // ━━━ STEP 2: RESULTS ━━━
   if (step === 2 && result) {
     const r = result;
-    const cls = classifyOffer(r.pctOfMax, r.taxableHourly);
-    const delta = Math.round(r.deltaToTypicalWeekly);
-    const leaving = delta > 0;
-    const specLabel =
-      SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
-    const blendedRate = r.hours > 0 ? Math.round(r.weeklyGross / r.hours) : 0;
-    const gsaDelta = Math.round(r.gsaWeeklyMax - r.stipendWeekly);
-    const showNegotiationScript = cls.tier === "amber" || cls.tier === "red";
+    const gsaPctCapped = Math.min(r.pctOfMax, 100);
+    const avgLocalRent = r.zoriRent ?? r.housing1br;
+    const surplusMonthly = Math.round(r.stipendMonthlyEst - avgLocalRent);
+    const ficaWeekly = Math.round(r.taxableWeekly * 0.0765);
+    const federalWeekly = Math.round(r.taxEstimateWeekly - ficaWeekly);
+    const otBase = Math.round(r.taxableHourly * 1.5);
 
+    // ── Ive palette ──
+    const C = {
+      black: "#000000",
+      muted: "#8E8E93",
+      hairline: "#E5E5EA",
+      bg: "#FFFFFF",
+    };
+    const font = "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif";
 
-    const negotiationScript = `Hi [Recruiter], I ran the numbers and noticed the stipends are $${gsaDelta > 0 ? gsaDelta : Math.abs(delta)} below the GSA max for ZIP ${r.zip}. Can we adjust the package to max out the stipends? The federal per diem ceiling is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk for this location.`;
+    // shared row style
+    const rowStyle = (opts?: { bold?: boolean }): React.CSSProperties => ({
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "baseline",
+      fontFamily: font,
+      fontSize: "15px",
+      fontWeight: opts?.bold ? 500 : 400,
+      color: C.black,
+      lineHeight: "1.6",
+    });
 
-    // Market context line based on tier
-    const marketContext = cls.tier === "irs"
-      ? `Your taxable hourly rate ($${r.taxableHourly}/hr) is dangerously low. This structure is known as "wage recharacterization" and can trigger IRS scrutiny. Do not sign without raising the taxable base to a fair market wage.`
-      : cls.tier === "amber" || cls.tier === "red"
-        ? `The GSA max for ${r.city ? `${r.city}, ${r.state}` : r.state} is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk. Your package only includes $${r.stipendWeekly.toLocaleString()}/wk in tax-free stipends — leaving ~$${gsaDelta > 0 ? gsaDelta.toLocaleString() : Math.abs(delta).toLocaleString()}/wk tax-free on the table.`
-        : `The GSA max for ${r.city ? `${r.city}, ${r.state}` : r.state} is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk. Your stipends are at ${r.pctOfMax}% of the federal ceiling.`;
+    const sectionGap: React.CSSProperties = { height: "40px" };
+    const hairline: React.CSSProperties = {
+      height: "1px",
+      background: C.hairline,
+      width: "100%",
+    };
 
-    const insLabel =
-      PLAN_OPTIONS.find((o) => o.value === plan)?.label ?? "None";
+    const accordionRow = (
+      label: string,
+      isOpen: boolean,
+      toggle: () => void
+    ): React.ReactNode => (
+      <button
+        onClick={toggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          padding: "18px 0",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: font,
+          fontSize: "16px",
+          fontWeight: 400,
+          color: C.black,
+          textAlign: "left" as const,
+          minHeight: "44px",
+        }}
+      >
+        <span>{label}</span>
+        <span
+          style={{
+            fontSize: "20px",
+            color: C.muted,
+            transition: "transform 0.3s ease",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            lineHeight: 1,
+          }}
+        >
+          ▾
+        </span>
+      </button>
+    );
 
     return (
       <div
         style={{
-          background: T.bg,
+          background: C.bg,
           minHeight: "100vh",
-          color: T.text,
-          padding: "18px 16px 80px",
+          color: C.black,
+          padding: "24px 24px 80px",
           display: "flex",
           justifyContent: "center",
         }}
       >
         <div style={{ width: "100%", maxWidth: "460px" }}>
-          {/* Sticky header */}
+          {/* ── Sticky header ── */}
           <div
             style={{
               position: "sticky",
               top: 0,
               zIndex: 10,
-              background: T.bg,
-              padding: "12px 0 16px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
+              background: C.bg,
+              padding: "12px 0 24px",
             }}
           >
             <button
@@ -1411,668 +1463,334 @@ export default function Calculator() {
             </button>
           </div>
 
-          {/* ━━━ PAY DIAGNOSIS CARD ━━━ */}
-          <Card>
-            {/* Hero Take-Home Number */}
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "11px",
-                  fontWeight: 800,
-                  color: T.textTertiary,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase" as const,
-                  marginBottom: "6px",
-                }}
-              >
-                Est. Take-Home
-              </div>
-              <div
-                style={{
-                  fontFamily: f.mono,
-                  fontSize: "42px",
-                  fontWeight: 900,
-                  color: T.text,
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1,
-                }}
-              >
-                ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}
-                <span
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: 600,
-                    color: T.textTertiary,
-                    marginLeft: "2px",
-                  }}
-                >
-                  /wk
-                </span>
-              </div>
-              <div
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "13px",
-                  color: T.textSecondary,
-                  marginTop: "6px",
-                }}
-              >
-                {specLabel} · {r.city ? `${r.city}, ` : ""}
-                {r.state} · {r.zip} · {r.hours}hr/wk
-                {agency.trim() ? ` · ${agency.trim()}` : ""}
-              </div>
-            </div>
+          {/* ━━━ ESTIMATED TAKE-HOME ━━━ */}
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "14px",
+              fontWeight: 400,
+              color: C.muted,
+              marginBottom: "6px",
+            }}
+          >
+            Estimated take-home
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "40px",
+              fontWeight: 500,
+              color: C.black,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+            }}
+          >
+            ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}
+            <span
+              style={{
+                fontSize: "20px",
+                fontWeight: 400,
+                color: C.muted,
+                marginLeft: "4px",
+              }}
+            >
+              / wk
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "12px",
+              fontWeight: 400,
+              color: C.muted,
+              marginTop: "8px",
+            }}
+          >
+            Modeled for {r.state}{plan !== "none" ? ` • ${PLAN_OPTIONS.find(o => o.value === plan)?.label ?? plan} filer` : ""}
+          </div>
 
-            {/* Color-Coded Diagnostic Pill */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                marginBottom: "12px",
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 16px",
-                  borderRadius: "999px",
-                  background: cls.bg,
-                  border: `1px solid ${cls.color}30`,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    fontWeight: 900,
-                    color: cls.color,
-                  }}
-                >
-                  {cls.label}
-                </span>
-                {leaving && gsaDelta > 0 && cls.tier !== "green" && cls.tier !== "irs" && (
-                  <span
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: cls.color,
-                      opacity: 0.8,
-                    }}
-                  >
-                    · ~${gsaDelta.toLocaleString()}/wk tax-free on the table
-                  </span>
-                )}
-              </div>
-            </div>
+          {/* ── gap ── */}
+          <div style={sectionGap} />
 
-            {/* Market Context */}
-            <div
+          {/* ━━━ ESTIMATED SURPLUS ━━━ */}
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "14px",
+              fontWeight: 400,
+              color: C.muted,
+              marginBottom: "6px",
+            }}
+          >
+            Estimated surplus
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "40px",
+              fontWeight: 500,
+              color: C.black,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+            }}
+          >
+            {surplusMonthly >= 0 ? "+" : "−"}${Math.abs(surplusMonthly).toLocaleString()}
+            <span
               style={{
-                fontFamily: f.sans,
-                fontSize: "12px",
-                color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
-                lineHeight: 1.6,
-                textAlign: "center" as const,
-                padding: "0 8px",
-                marginBottom: "16px",
-                fontWeight: cls.tier === "irs" ? 600 : 400,
+                fontSize: "20px",
+                fontWeight: 400,
+                color: C.muted,
+                marginLeft: "4px",
               }}
             >
-              {marketContext}
-            </div>
+              / mo
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "12px",
+              fontWeight: 400,
+              color: C.muted,
+              marginTop: "8px",
+            }}
+          >
+            ${Math.round(r.stipendMonthlyEst).toLocaleString()} stipend less ${Math.round(avgLocalRent).toLocaleString()} average local rent
+          </div>
 
-            {/* True Blended Rate */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 12px",
-                background: T.surfaceRaised,
-                borderRadius: "8px",
-                marginBottom: "16px",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  color: T.textSecondary,
-                }}
-              >
-                True Blended Rate
-              </span>
-              <span
-                style={{
-                  fontFamily: f.mono,
-                  fontSize: "18px",
-                  fontWeight: 900,
-                  color: T.text,
-                }}
-              >
-                ${blendedRate}/hr
-              </span>
-            </div>
+          {/* ── gap ── */}
+          <div style={sectionGap} />
 
-            <div
+          {/* ━━━ FEDERAL ALLOWANCE ━━━ */}
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "14px",
+              fontWeight: 400,
+              color: C.muted,
+              marginBottom: "6px",
+            }}
+          >
+            Federal allowance
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "40px",
+              fontWeight: 500,
+              color: C.black,
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+            }}
+          >
+            {gsaPctCapped}%
+            <span
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                fontSize: "20px",
+                fontWeight: 400,
+                color: C.muted,
+                marginLeft: "4px",
               }}
             >
-              <GovBadge text={`GSA FY${r.fiscalYear}`} />
-              {showNegotiationScript && (
-                <button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(negotiationScript);
-                    setScriptCopied(true);
-                    setTimeout(() => setScriptCopied(false), 3000);
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: f.sans,
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: cls.color,
-                    padding: "4px 0",
-                    textDecoration: "underline",
-                    textUnderlineOffset: "3px",
-                    transition: "opacity 0.2s ease",
-                  }}
-                >
-                  {scriptCopied ? "✓ Copied!" : "Copy negotiation script"}
-                </button>
-              )}
-            </div>
-          </Card>
+              optimized
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "12px",
+              fontWeight: 400,
+              color: C.muted,
+              marginTop: "8px",
+            }}
+          >
+            Offer aligns with GSA limits for this location
+          </div>
 
-          {/* ━━━ BREAKDOWN CARD ━━━ */}
-          <Card style={{ marginTop: "12px" }}>
-            <MicroLabel>Pay package breakdown</MicroLabel>
-            {/* Waterfall */}
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    color: T.textSecondary,
-                  }}
-                >
-                  Weekly Gross
-                </span>
-                <span
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "16px",
-                    fontWeight: 900,
-                  }}
-                >
-                  ${r.weeklyGross.toLocaleString()}
-                </span>
-              </div>
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: "4px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "12px",
-                      color: T.primary,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Tax-Free Stipend
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: f.mono,
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: T.primary,
-                    }}
-                  >
-                    ${r.stipendWeekly.toLocaleString()}
-                  </span>
-                </div>
-                <ProgressBar
-                  value={r.stipendWeekly}
-                  max={r.weeklyGross}
-                  color={T.primary}
-                />
-                <div
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "10px",
-                    color: T.textTertiary,
-                    marginTop: "4px",
-                  }}
-                >
-                  Federal per diem limit: $
-                  {Math.round(r.gsaWeeklyMax).toLocaleString()}/wk
-                </div>
-              </div>
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: "4px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "12px",
-                      color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
-                      fontWeight: cls.tier === "irs" ? 700 : 400,
-                    }}
-                  >
-                    Taxable base ({r.hours}hr × ${r.taxableHourly}/hr)
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: f.mono,
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
-                    }}
-                  >
-                    ${r.taxableWeekly.toLocaleString()}
-                  </span>
-                </div>
-                <ProgressBar
-                  value={r.taxableWeekly}
-                  max={r.weeklyGross}
-                  color={cls.tier === "irs" ? T.moneyNegative : T.textTertiary}
-                />
-                {cls.tier === "irs" && (
-                  <div
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "10px",
-                      color: T.moneyNegative,
-                      fontWeight: 600,
-                      marginTop: "4px",
-                    }}
-                  >
-                    ⚠ Hourly rate below $20/hr — IRS wage recharacterization risk
-                  </div>
-                )}
-              </div>
-              <div style={{ height: "1px", background: T.borderSubtle }} />
-              {r.insuranceWeeklyMid > 0 ? (
-                <>
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: f.sans,
-                        fontSize: "13px",
-                        color: T.textSecondary,
-                      }}
-                    >
-                      Gross before insurance
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: f.mono,
-                        fontSize: "14px",
-                        fontWeight: 900,
-                      }}
-                    >
-                      ${Math.round(r.netWeekly).toLocaleString()}
-                    </span>
-                  </div>
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: f.sans,
-                        fontSize: "13px",
-                        color: T.moneyNegative,
-                      }}
-                    >
-                      Insurance ({insLabel})
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: f.mono,
-                        fontSize: "14px",
-                        fontWeight: 900,
-                        color: T.moneyNegative,
-                      }}
-                    >
-                      −${Math.round(r.insuranceWeeklyMid).toLocaleString()}/wk
-                    </span>
-                  </div>
-                </>
-              ) : null}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "10px 12px",
-                  background: T.moneyPositiveBg,
-                  borderRadius: "8px",
-                  border: `1px solid ${T.moneyPositive}20`,
-                  marginTop: r.insuranceWeeklyMid > 0 ? "8px" : "0",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    fontWeight: 900,
-                    color: T.moneyPositive,
-                  }}
-                >
-                  {r.insuranceWeeklyMid > 0
-                    ? "Take-home after insurance"
-                    : "Estimated take-home"}
-                </span>
-                <span
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "16px",
-                    fontWeight: 900,
-                    color: T.moneyPositive,
-                  }}
-                >
-                  ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}/wk
-                </span>
-              </div>
-            </div>
-            <div
-              style={{
-                fontFamily: f.sans,
-                fontSize: "10px",
-                color: T.textTertiary,
-                marginTop: "16px",
-                lineHeight: 1.5,
-              }}
-            >
-              {r.taxMethod}
-            </div>
-          </Card>
+          {/* ── gap before accordions ── */}
+          <div style={sectionGap} />
 
-          {/* ━━━ HOUSING ━━━ */}
-          <Card style={{ marginTop: "12px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "12px",
-              }}
-            >
-              <MicroLabel>Housing vs. Stipend</MicroLabel>
-              <span
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "9px",
-                  color: T.textTertiary,
-                  background: T.surfaceRaised,
-                  padding: "2px 6px",
-                  borderRadius: "3px",
-                }}
-              >
-                {r.hudSource}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "8px",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "13px",
-                  color: T.textSecondary,
-                }}
-              >
-                HUD 1BR Fair Market Rent
-              </span>
-              <span
-                style={{
-                  fontFamily: f.mono,
-                  fontSize: "14px",
-                  fontWeight: 700,
-                }}
-              >
-                ${r.housing1br.toLocaleString()}/mo
-              </span>
-            </div>
-            {r.zoriRent && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    color: T.textSecondary,
-                  }}
-                >
-                  Zillow Observed Rent
-                </span>
-                <span
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "14px",
-                    fontWeight: 700,
-                  }}
-                >
-                  ${Math.round(r.zoriRent).toLocaleString()}/mo
-                </span>
-              </div>
-            )}
-            {r.marketRatio && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "13px",
-                    color: T.textSecondary,
-                  }}
-                >
-                  Observed Market Ratio
-                </span>
-                <span
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: r.marketRatio > 1.1 ? T.moneyNegative : T.text,
-                  }}
-                >
-                  {r.marketRatio}×
-                </span>
-              </div>
-            )}
-            <div
-              style={{
-                height: "1px",
-                background: T.borderSubtle,
-                margin: "8px 0",
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "8px 10px",
-                background:
-                  r.stipendMonthlyEst >= r.housing1br
-                    ? T.moneyPositiveBg
-                    : T.moneyNegativeBg,
-                borderRadius: "6px",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: f.sans,
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  color:
-                    r.stipendMonthlyEst >= r.housing1br
-                      ? T.moneyPositive
-                      : T.moneyNegative,
-                }}
-              >
-                Stipend covers{" "}
-                {r.stipendMonthlyEst >= r.housing1br * 2
-                  ? `~${Math.round(r.stipendMonthlyEst / Math.max(r.housing1br, 1))}×`
-                  : `${Math.round((r.stipendMonthlyEst / Math.max(r.housing1br, 1)) * 100)}% of`}{" "}
-                monthly rent
-              </span>
-            </div>
-          </Card>
-
-          {/* ━━━ INSURANCE SOURCE ━━━ */}
-          {r.insuranceWeeklyMid > 0 && (
-            <Card style={{ marginTop: "12px" }}>
-              <MicroLabel>Insurance estimate</MicroLabel>
-              <div
-                style={{
-                  marginTop: "8px",
-                  fontFamily: f.sans,
-                  fontSize: "12px",
-                  color: T.textSecondary,
-                  lineHeight: 1.5,
-                }}
-              >
-                Source: {r.insuranceSourceType}.
-                {r.insuranceWeeklyMin !== null &&
-                  r.insuranceWeeklyMax !== null &&
-                  r.insuranceWeeklyMin !== r.insuranceWeeklyMax
-                  ? ` Range: $${r.insuranceWeeklyMin}–$${r.insuranceWeeklyMax}/wk.`
-                  : ""}{" "}
-                Override wins when provided.
-              </div>
-            </Card>
+          {/* ━━━ ACCORDION: PAY BREAKDOWN ━━━ */}
+          <div style={hairline} />
+          {accordionRow(
+            "View pay & tax breakdown",
+            showBreakdown,
+            () => setShowBreakdown((p) => !p)
           )}
+          <div
+            style={{
+              maxHeight: showBreakdown ? "600px" : "0px",
+              overflow: "hidden",
+              transition: "max-height 0.3s ease-in-out",
+            }}
+          >
+            <div style={{ paddingBottom: "24px" }}>
+              {/* Gross pay */}
+              <div style={rowStyle({ bold: true })}>
+                <span>Gross pay</span>
+                <span>${r.weeklyGross.toLocaleString()} / wk</span>
+              </div>
+              <div style={rowStyle()}>
+                <span>Tax-free stipend</span>
+                <span>${r.stipendWeekly.toLocaleString()} / wk</span>
+              </div>
+              <div style={rowStyle()}>
+                <span>Taxable hourly</span>
+                <span>${r.taxableWeekly.toLocaleString()} / wk</span>
+              </div>
 
-          {/* SHARE + RESET */}
+              <div style={{ height: "20px" }} />
+
+              {/* Estimated taxes */}
+              <div style={rowStyle({ bold: true })}>
+                <span>Estimated taxes</span>
+                <span>−${Math.round(r.taxEstimateWeekly).toLocaleString()} / wk</span>
+              </div>
+              <div style={{ ...rowStyle(), color: C.muted, fontSize: "14px" }}>
+                <span>FICA (7.65%)</span>
+                <span>−${ficaWeekly}</span>
+              </div>
+              <div style={{ ...rowStyle(), color: C.muted, fontSize: "14px" }}>
+                <span>Federal (effective)</span>
+                <span>−${Math.max(federalWeekly, 0)}</span>
+              </div>
+              <div style={{ ...rowStyle(), color: C.muted, fontSize: "14px" }}>
+                <span>State</span>
+                <span>−$0</span>
+              </div>
+
+              {/* Tax disclaimer */}
+              <div
+                style={{
+                  fontFamily: font,
+                  fontSize: "12px",
+                  color: C.muted,
+                  lineHeight: 1.5,
+                  marginTop: "16px",
+                }}
+              >
+                Assumes duplicated expenses to qualify for tax-free stipends. Consult a tax professional.
+              </div>
+            </div>
+          </div>
+
+          {/* ━━━ ACCORDION: ADVISORIES ━━━ */}
+          <div style={hairline} />
+          {accordionRow(
+            "Review contract advisories",
+            showAdvisories,
+            () => setShowAdvisories((p) => !p)
+          )}
+          <div
+            style={{
+              maxHeight: showAdvisories ? "800px" : "0px",
+              overflow: "hidden",
+              transition: "max-height 0.3s ease-in-out",
+            }}
+          >
+            <div style={{ paddingBottom: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Housing allocation */}
+              <div>
+                <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "4px" }}>
+                  Housing allocation
+                </div>
+                <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.6 }}>
+                  Secure short-term lodging for the first 14 days. Do not sign a lease sight-unseen to protect your <span style={{ fontWeight: 500, color: C.black }}>${Math.abs(surplusMonthly).toLocaleString()}</span> surplus against unexpected facility cancellations.
+                </div>
+              </div>
+
+              {/* Overtime leverage */}
+              <div>
+                <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "4px" }}>
+                  Overtime leverage
+                </div>
+                <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.6 }}>
+                  Your <span style={{ fontWeight: 500, color: C.black }}>${r.taxableHourly}/hr</span> taxable base limits standard overtime to just <span style={{ fontWeight: 500, color: C.black }}>${otBase}/hr</span>. Require a custom, elevated overtime rate in your contract before signing.
+                </div>
+              </div>
+
+              {/* Shift protection */}
+              <div>
+                <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "4px" }}>
+                  Shift protection
+                </div>
+                <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.6 }}>
+                  Verify the guaranteed hours clause. Ensure tax-free stipends are not reduced if the facility calls you off due to low patient census.
+                </div>
+              </div>
+
+              {/* Orientation variance */}
+              <div>
+                <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "4px" }}>
+                  Orientation variance
+                </div>
+                <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.6 }}>
+                  Budget for a lower initial paycheck. Orientation is typically three days, which legally prorates your first week&#39;s stipend.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ━━━ SHARE ANALYSIS ━━━ */}
+          <div style={hairline} />
           <button
             onClick={handleShareLink}
             style={{
-              width: "100%",
-              marginTop: "16px",
-              padding: "14px",
-              borderRadius: "10px",
-              border: "none",
-              background: T.primary,
-              color: "#fff",
-              fontFamily: f.sans,
-              fontSize: "15px",
-              fontWeight: 800,
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
+              justifyContent: "space-between",
+              width: "100%",
+              padding: "18px 0",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: font,
+              fontSize: "16px",
+              fontWeight: 400,
+              color: C.black,
+              textAlign: "left" as const,
+              minHeight: "44px",
             }}
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#fff"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-            </svg>
-            Share link (prefilled)
+            Share analysis
           </button>
+          <div style={hairline} />
+
+          {/* ── New lookup ── */}
           <button
             onClick={handleReset}
             style={{
               width: "100%",
-              marginTop: "12px",
-              padding: "12px",
-              background: "transparent",
+              marginTop: "32px",
+              padding: 0,
+              background: "none",
               border: "none",
-              color: T.textSecondary,
-              fontFamily: f.sans,
+              color: C.muted,
+              fontFamily: font,
               fontSize: "14px",
-              fontWeight: 600,
+              fontWeight: 400,
               cursor: "pointer",
-              textDecoration: "underline",
-              textUnderlineOffset: "4px",
+              textAlign: "left" as const,
             }}
           >
             New lookup
           </button>
 
+          {/* ── Footer ── */}
           <footer
             style={{
-              fontFamily: f.sans,
-              fontSize: "10px",
-              color: T.textTertiary,
-              lineHeight: 1.6,
-              padding: "16px 0",
-              borderTop: `1px solid ${T.borderSubtle}`,
-              marginTop: "12px",
+              fontFamily: font,
+              fontSize: "11px",
+              color: C.muted,
+              lineHeight: 1.7,
+              padding: "32px 0 0",
             }}
           >
-            Pay data from nurses and allied health like you (protected under
-            NLRA Section 7). Per diem rates from{" "}
-            <a
-              href="https://www.gsa.gov/travel/plan-book/per-diem-rates"
-              style={{ color: T.textTertiary }}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GSA.gov
-            </a>
-            . Housing data from{" "}
-            <a
-              href="https://www.huduser.gov/portal/datasets/fmr.html"
-              style={{ color: T.textTertiary }}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              HUD FMR
-            </a>
-            . Insurance estimates sourced per-agency; override with your paystub
-            number. Not an agency. Not sponsored by one. Just the math.
+            Per diem rates from{" "}
+            <a href="https://www.gsa.gov/travel/plan-book/per-diem-rates" style={{ color: C.muted }} target="_blank" rel="noopener noreferrer">GSA.gov</a>
+            . Housing from{" "}
+            <a href="https://www.huduser.gov/portal/datasets/fmr.html" style={{ color: C.muted }} target="_blank" rel="noopener noreferrer">HUD FMR</a>
+            . Pay data protected under NLRA Section 7.
           </footer>
         </div>
       </div>
