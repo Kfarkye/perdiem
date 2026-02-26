@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS _internal_msp_hotspots (
     dominant_msp TEXT,                     -- most common MSP in state
     hotspot_score INTEGER DEFAULT 0       -- 1-10, higher = more compressed
         CHECK (hotspot_score BETWEEN 0 AND 10),
+    demand_signal BOOLEAN DEFAULT FALSE,  -- TRUE = MSP rate still above market avg (demand > compression)
     notes TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -87,8 +88,8 @@ ON CONFLICT DO NOTHING;
 -- ━━━ SEED: Known MSP hotspot intel ━━━
 INSERT INTO _internal_msp_hotspots
     (state_abbr, state_name, total_msp_facilities, sole_source_count,
-     avg_bill_rate, dominant_msp, hotspot_score, notes)
+     avg_bill_rate, dominant_msp, hotspot_score, demand_signal, notes)
 VALUES
-    ('WA', 'Washington', 1, 1, 100.00, 'Aya Healthcare', 5,
-     'Providence system confirmed Aya sole-source MSP. Kadlec verified. Other Providence facilities in WA likely same arrangement.')
+    ('WA', 'Washington', 1, 1, 100.00, 'Aya Healthcare', 3, TRUE,
+     'Providence system = Aya sole-source MSP. Despite rate lock, RRT pays $2,559/wk — well above national avg ($2,058). Demand overrides compression. High-value market.')
 ON CONFLICT (state_abbr) DO NOTHING;
