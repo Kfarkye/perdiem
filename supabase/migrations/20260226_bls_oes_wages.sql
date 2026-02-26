@@ -61,7 +61,9 @@ VALUES
     ('29-2061','Licensed Practical Nurses','LPN','national','National',
      658240,37190,42550,51850,60830,67960,52560,25.27,24.93),
     ('31-1131','Nursing Assistants','CNA','national','National',
-     1393400,27460,30810,36220,41270,47350,37080,17.83,17.42)
+     1393400,27460,30810,36220,41270,47350,37080,17.83,17.42),
+    ('31-9097','Phlebotomists','PHLEB','national','National',
+     146800,34860,39190,43660,50360,57750,45750,22.00,20.99)
 ON CONFLICT (soc_code, area_type, area_name, survey_period) DO NOTHING;
 
 -- ━━━ SEED: Top-paying states (BLS May 2024) ━━━
