@@ -72,6 +72,8 @@ interface DisplayResult {
   weeklyGross: number;
   hours: number;
   gsaWeeklyMax: number;
+  gsaLodgingDaily: number;
+  gsaMealsDaily: number;
   fiscalYear: number;
   stipendWeekly: number;
   stipendMonthlyEst: number;
@@ -107,6 +109,8 @@ function mapApiToDisplay(api: ApiResult): DisplayResult {
     weeklyGross: api.breakdown.weekly_gross,
     hours: api.breakdown.hours,
     gsaWeeklyMax: api.gsa.weekly_max,
+    gsaLodgingDaily: api.gsa.lodging_daily,
+    gsaMealsDaily: api.gsa.meals_daily,
     fiscalYear: api.gsa.fiscal_year,
     stipendWeekly: api.breakdown.stipend_weekly,
     stipendMonthlyEst: api.housing.stipend_monthly_est,
@@ -1361,6 +1365,13 @@ export default function Calculator() {
     const federalWeekly = Math.round(r.taxEstimateWeekly - ficaWeekly);
     const otBase = Math.round(r.taxableHourly * 1.5);
 
+    // Stipend split: meals vs housing (from GSA daily components)
+    const gsaHousingWeekly = Math.round(r.gsaLodgingDaily * 7);
+    const gsaMealsWeekly = Math.round(r.gsaMealsDaily * 7);
+    const stipendRatio = r.gsaWeeklyMax > 0 ? r.stipendWeekly / r.gsaWeeklyMax : 1;
+    const housingStipendWeekly = Math.round(gsaHousingWeekly * stipendRatio);
+    const mealsStipendWeekly = Math.round(r.stipendWeekly - housingStipendWeekly);
+
     // ── Ive palette ──
     const C = {
       black: "#000000",
@@ -1577,18 +1588,28 @@ export default function Calculator() {
                 </span>
                 <span>${r.stipendWeekly.toLocaleString()}</span>
               </div>
-              {/* ⓘ disclaimer expand */}
+              {/* ⓘ stipend split + disclaimer */}
               {scriptCopied && (
-                <div
-                  style={{
-                    fontFamily: font,
-                    fontSize: "12px",
-                    color: C.muted,
-                    lineHeight: 1.5,
-                    padding: "8px 0 4px",
-                  }}
-                >
-                  Assumes duplicated expenses to qualify for tax-free stipends.
+                <div style={{ padding: "6px 0 8px" }}>
+                  <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
+                    <span>Housing</span>
+                    <span>${housingStipendWeekly.toLocaleString()}</span>
+                  </div>
+                  <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
+                    <span>Meals</span>
+                    <span>${mealsStipendWeekly.toLocaleString()}</span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: font,
+                      fontSize: "11px",
+                      color: C.muted,
+                      lineHeight: 1.5,
+                      padding: "6px 0 0 16px",
+                    }}
+                  >
+                    Assumes duplicated expenses to qualify for tax-free stipends.
+                  </div>
                 </div>
               )}
               <div style={rowStyle()}>
@@ -1681,7 +1702,7 @@ export default function Calculator() {
               Overtime ceiling
             </div>
             <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.5 }}>
-              ${r.taxableHourly}/hr base → OT ≈ ${otBase}/hr. Negotiate elevated OT rate.
+              ${r.taxableHourly}/hr base → statutory OT ≈ ${otBase}/hr. Travelers routinely negotiate 2–3× above this floor.
             </div>
           </div>
 
