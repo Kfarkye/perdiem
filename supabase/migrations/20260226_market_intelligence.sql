@@ -78,6 +78,10 @@ VALUES
     ('GA','Georgia','CST',1589,1300,1800,1,false,'ZipRecruiter $1,589. Feb 2026'),
     ('NJ','New Jersey','CST',1890,1600,2200,1,false,'Vivian $1,890. Feb 2026'),
 
+    -- ── PHLEB (Travel Phlebotomist) ──
+    ('CA','California','PHLEB',1181,1010,1348,4,true,'Verified: 4 Aya job board listings avg. Feb 2026'),
+    ('ID','Idaho','PHLEB',792,677,906,1,true,'Verified: 1 Aya job board listing. Feb 2026'),
+
     -- ── National averages (all specialties) ──
     ('US','National','RN',2294,1800,3000,5,false,'Vivian Dec 2024 avg $2,294. Cross-platform median. Feb 2026'),
     ('US','National','RRT',2058,1758,2526,4,false,'ZipRecruiter $1,758; Vivian $2,235; Indeed $2,111. Feb 2026'),
