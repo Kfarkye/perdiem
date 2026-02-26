@@ -206,11 +206,45 @@ function buildPrefillUrl(p: {
   return url.toString();
 }
 
-function classifyOffer(pct: number) {
-  if (pct >= 95) return { label: "Top", color: T.moneyPositive };
-  if (pct >= 85) return { label: "Typical", color: T.primary };
-  if (pct >= 80) return { label: "Below Avg", color: T.accent };
-  return { label: "Low", color: T.moneyNegative };
+function classifyOffer(pct: number, taxableHourly?: number) {
+  // IRS Audit Risk: dangerously low hourly base paired with high stipends
+  if (taxableHourly !== undefined && taxableHourly < 20 && pct >= 85) {
+    return {
+      label: "🚨 IRS Audit Risk",
+      pill: "Dangerously low hourly base",
+      color: T.moneyNegative,
+      bg: T.moneyNegativeBg,
+      tier: "irs" as const,
+    };
+  }
+  if (pct >= 95) return {
+    label: "Maxed Out",
+    pill: `${pct}% of GSA stipends`,
+    color: T.moneyPositive,
+    bg: T.moneyPositiveBg,
+    tier: "green" as const,
+  };
+  if (pct >= 85) return {
+    label: "Solid",
+    pill: `${pct}% of GSA — within typical band`,
+    color: T.primary,
+    bg: T.primaryMuted,
+    tier: "green" as const,
+  };
+  if (pct >= 75) return {
+    label: "Room to Negotiate",
+    pill: "Stipends below GSA max",
+    color: T.accent,
+    bg: T.accentMuted,
+    tier: "amber" as const,
+  };
+  return {
+    label: "Lowball",
+    pill: "Underfunded stipends & high tax burden",
+    color: T.moneyNegative,
+    bg: T.moneyNegativeBg,
+    tier: "red" as const,
+  };
 }
 
 function getDefaultHours(specialty: string): number {
@@ -530,6 +564,7 @@ export default function Calculator() {
   const [error, setError] = useState<string | null>(null);
   const [gsaPreview, setGsaPreview] = useState<ApiResult | null>(null);
   const [result, setResult] = useState<DisplayResult | null>(null);
+  const [scriptCopied, setScriptCopied] = useState(false);
 
   // When specialty changes, update hours to default for that profession
   const handleSpecialtyChange = useCallback((val: string) => {
@@ -1304,7 +1339,7 @@ export default function Calculator() {
                 cursor: gross.length >= 3 ? "pointer" : "default",
               }}
             >
-              Decode my offer →
+              Calculate Pay
             </button>
           </Card>
         </div>
@@ -1315,15 +1350,24 @@ export default function Calculator() {
   // ━━━ STEP 2: RESULTS ━━━
   if (step === 2 && result) {
     const r = result;
-    const cls = classifyOffer(r.pctOfMax);
+    const cls = classifyOffer(r.pctOfMax, r.taxableHourly);
     const delta = Math.round(r.deltaToTypicalWeekly);
     const leaving = delta > 0;
     const specLabel =
       SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
+    const blendedRate = r.hours > 0 ? Math.round(r.weeklyGross / r.hours) : 0;
+    const gsaDelta = Math.round(r.gsaWeeklyMax - r.stipendWeekly);
+    const showNegotiationScript = cls.tier === "amber" || cls.tier === "red";
 
-    const verdictLine = leaving
-      ? `Stipend is ${r.pctOfMax}% of GSA max. Most agencies land ${r.typicalBand}. You're leaving ~$${Math.abs(delta).toLocaleString()}/wk on the table vs 90%.`
-      : `Stipend is ${r.pctOfMax}% of GSA max — ${cls.label.toLowerCase()} versus the typical ${r.typicalBand} band.`;
+
+    const negotiationScript = `Hi [Recruiter], I ran the numbers and noticed the stipends are $${gsaDelta > 0 ? gsaDelta : Math.abs(delta)} below the GSA max for ZIP ${r.zip}. Can we adjust the package to max out the stipends? The federal per diem ceiling is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk for this location.`;
+
+    // Market context line based on tier
+    const marketContext = cls.tier === "irs"
+      ? `Your taxable hourly rate ($${r.taxableHourly}/hr) is dangerously low. This structure is known as "wage recharacterization" and can trigger IRS scrutiny. Do not sign without raising the taxable base to a fair market wage.`
+      : cls.tier === "amber" || cls.tier === "red"
+        ? `The GSA max for ${r.city ? `${r.city}, ${r.state}` : r.state} is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk. Your package only includes $${r.stipendWeekly.toLocaleString()}/wk in tax-free stipends — leaving ~$${gsaDelta > 0 ? gsaDelta.toLocaleString() : Math.abs(delta).toLocaleString()}/wk tax-free on the table.`
+        : `The GSA max for ${r.city ? `${r.city}, ${r.state}` : r.state} is $${Math.round(r.gsaWeeklyMax).toLocaleString()}/wk. Your stipends are at ${r.pctOfMax}% of the federal ceiling.`;
 
     const insLabel =
       PLAN_OPTIONS.find((o) => o.value === plan)?.label ?? "None";
@@ -1367,59 +1411,195 @@ export default function Calculator() {
             </button>
           </div>
 
-          {/* ━━━ VERDICT CARD ━━━ */}
+          {/* ━━━ PAY DIAGNOSIS CARD ━━━ */}
           <Card>
+            {/* Hero Take-Home Number */}
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div
+                style={{
+                  fontFamily: f.sans,
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  color: T.textTertiary,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  marginBottom: "6px",
+                }}
+              >
+                Est. Take-Home
+              </div>
+              <div
+                style={{
+                  fontFamily: f.mono,
+                  fontSize: "42px",
+                  fontWeight: 900,
+                  color: T.text,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1,
+                }}
+              >
+                ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}
+                <span
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 600,
+                    color: T.textTertiary,
+                    marginLeft: "2px",
+                  }}
+                >
+                  /wk
+                </span>
+              </div>
+              <div
+                style={{
+                  fontFamily: f.sans,
+                  fontSize: "13px",
+                  color: T.textSecondary,
+                  marginTop: "6px",
+                }}
+              >
+                {specLabel} · {r.city ? `${r.city}, ` : ""}
+                {r.state} · {r.zip} · {r.hours}hr/wk
+                {agency.trim() ? ` · ${agency.trim()}` : ""}
+              </div>
+            </div>
+
+            {/* Color-Coded Diagnostic Pill */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 16px",
+                  borderRadius: "999px",
+                  background: cls.bg,
+                  border: `1px solid ${cls.color}30`,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: f.sans,
+                    fontSize: "13px",
+                    fontWeight: 900,
+                    color: cls.color,
+                  }}
+                >
+                  {cls.label}
+                </span>
+                {leaving && gsaDelta > 0 && cls.tier !== "green" && cls.tier !== "irs" && (
+                  <span
+                    style={{
+                      fontFamily: f.sans,
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: cls.color,
+                      opacity: 0.8,
+                    }}
+                  >
+                    · ~${gsaDelta.toLocaleString()}/wk tax-free on the table
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Market Context */}
+            <div
+              style={{
+                fontFamily: f.sans,
+                fontSize: "12px",
+                color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
+                lineHeight: 1.6,
+                textAlign: "center" as const,
+                padding: "0 8px",
+                marginBottom: "16px",
+                fontWeight: cls.tier === "irs" ? 600 : 400,
+              }}
+            >
+              {marketContext}
+            </div>
+
+            {/* True Blended Rate */}
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: "14px",
+                alignItems: "center",
+                padding: "10px 12px",
+                background: T.surfaceRaised,
+                borderRadius: "8px",
+                marginBottom: "16px",
               }}
             >
-              <div>
-                <div
-                  style={{
-                    fontFamily: f.mono,
-                    fontSize: "36px",
-                    fontWeight: 900,
-                    color: cls.color,
-                    letterSpacing: "-0.02em",
-                    lineHeight: 1,
-                  }}
-                >
-                  {r.pctOfMax}%
-                </div>
-                <div
-                  style={{
-                    fontFamily: f.sans,
-                    fontSize: "14px",
-                    color: T.textSecondary,
-                    marginTop: "8px",
-                  }}
-                >
-                  {specLabel} · {r.city ? `${r.city}, ` : ""}
-                  {r.state} · {r.zip} · {r.hours}hr
-                </div>
-                {agency.trim() && (
-                  <div
-                    style={{
-                      fontFamily: f.sans,
-                      fontSize: "12px",
-                      color: T.textTertiary,
-                      marginTop: "2px",
-                    }}
-                  >
-                    Agency: {agency.trim()}
-                  </div>
-                )}
-              </div>
-              <GovBadge text={`GSA FY${r.fiscalYear}`} />
+              <span
+                style={{
+                  fontFamily: f.sans,
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: T.textSecondary,
+                }}
+              >
+                True Blended Rate
+              </span>
+              <span
+                style={{
+                  fontFamily: f.mono,
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  color: T.text,
+                }}
+              >
+                ${blendedRate}/hr
+              </span>
             </div>
 
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <GovBadge text={`GSA FY${r.fiscalYear}`} />
+              {showNegotiationScript && (
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(negotiationScript);
+                    setScriptCopied(true);
+                    setTimeout(() => setScriptCopied(false), 3000);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: f.sans,
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: cls.color,
+                    padding: "4px 0",
+                    textDecoration: "underline",
+                    textUnderlineOffset: "3px",
+                    transition: "opacity 0.2s ease",
+                  }}
+                >
+                  {scriptCopied ? "✓ Copied!" : "Copy negotiation script"}
+                </button>
+              )}
+            </div>
+          </Card>
+
+          {/* ━━━ BREAKDOWN CARD ━━━ */}
+          <Card style={{ marginTop: "12px" }}>
+            <MicroLabel>Pay package breakdown</MicroLabel>
             {/* Waterfall */}
             <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}
             >
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span
@@ -1499,17 +1679,18 @@ export default function Calculator() {
                     style={{
                       fontFamily: f.sans,
                       fontSize: "12px",
-                      color: T.textSecondary,
+                      color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
+                      fontWeight: cls.tier === "irs" ? 700 : 400,
                     }}
                   >
-                    Base wages ({r.hours}hr × ${r.taxableHourly}/hr)
+                    Taxable base ({r.hours}hr × ${r.taxableHourly}/hr)
                   </span>
                   <span
                     style={{
                       fontFamily: f.mono,
                       fontSize: "14px",
                       fontWeight: 600,
-                      color: T.textSecondary,
+                      color: cls.tier === "irs" ? T.moneyNegative : T.textSecondary,
                     }}
                   >
                     ${r.taxableWeekly.toLocaleString()}
@@ -1518,8 +1699,21 @@ export default function Calculator() {
                 <ProgressBar
                   value={r.taxableWeekly}
                   max={r.weeklyGross}
-                  color={T.textTertiary}
+                  color={cls.tier === "irs" ? T.moneyNegative : T.textTertiary}
                 />
+                {cls.tier === "irs" && (
+                  <div
+                    style={{
+                      fontFamily: f.sans,
+                      fontSize: "10px",
+                      color: T.moneyNegative,
+                      fontWeight: 600,
+                      marginTop: "4px",
+                    }}
+                  >
+                    ⚠ Hourly rate below $20/hr — IRS wage recharacterization risk
+                  </div>
+                )}
               </div>
               <div style={{ height: "1px", background: T.borderSubtle }} />
               {r.insuranceWeeklyMid > 0 ? (
@@ -1591,7 +1785,7 @@ export default function Calculator() {
                   }}
                 >
                   {r.insuranceWeeklyMid > 0
-                    ? "Net after insurance"
+                    ? "Take-home after insurance"
                     : "Estimated take-home"}
                 </span>
                 <span
