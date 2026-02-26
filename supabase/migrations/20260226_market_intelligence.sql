@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS market_housing_by_state (
     hud_fmr_weekly INTEGER GENERATED ALWAYS AS (
         ROUND(hud_fmr_1br / 4.33)
     ) STORED,
+    col_multiplier NUMERIC(3,2) NOT NULL DEFAULT 1.00,  -- cost-of-living multiplier (flights, food, isolation)
+    col_note TEXT,                          -- why this state has a multiplier
+    adjusted_weekly INTEGER GENERATED ALWAYS AS (
+        ROUND((hud_fmr_1br / 4.33) * col_multiplier)
+    ) STORED,
     fiscal_year INTEGER NOT NULL DEFAULT 2026,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -129,27 +134,32 @@ ON CONFLICT (state_abbr, specialty) DO NOTHING;
 
 -- ━━━ SEED: Housing costs by state (HUD FMR FY2026, 1BR) ━━━
 -- Source: huduser.gov FMR FY2026, state-level medians
+-- col_multiplier accounts for costs HUD FMR cannot capture:
+--   flights home, inflated grocery prices, isolation premium
+--   Default 1.00 for Lower 48 driveable states
 INSERT INTO market_housing_by_state
-    (state_abbr, state_name, hud_fmr_1br)
+    (state_abbr, state_name, hud_fmr_1br, col_multiplier, col_note)
 VALUES
-    ('CA','California',2100),
-    ('TX','Texas',1150),
-    ('FL','Florida',1450),
-    ('NY','New York',1750),
-    ('WA','Washington',1500),
-    ('AZ','Arizona',1200),
-    ('IL','Illinois',1100),
-    ('PA','Pennsylvania',1050),
-    ('GA','Georgia',1200),
-    ('MA','Massachusetts',1900),
-    ('NJ','New Jersey',1600),
-    ('AK','Alaska',1250),
-    ('OR','Oregon',1350),
-    ('NV','Nevada',1300),
-    ('CO','Colorado',1550),
-    ('OH','Ohio',900),
-    ('NC','North Carolina',1100),
-    ('MI','Michigan',950),
-    ('VA','Virginia',1400),
-    ('SC','South Carolina',1050)
+    ('CA','California',2100, 1.00, NULL),
+    ('TX','Texas',1150, 1.00, NULL),
+    ('FL','Florida',1450, 1.00, NULL),
+    ('NY','New York',1750, 1.00, NULL),
+    ('WA','Washington',1500, 1.00, NULL),
+    ('AZ','Arizona',1200, 1.00, NULL),
+    ('IL','Illinois',1100, 1.00, NULL),
+    ('PA','Pennsylvania',1050, 1.00, NULL),
+    ('GA','Georgia',1200, 1.00, NULL),
+    ('MA','Massachusetts',1900, 1.00, NULL),
+    ('NJ','New Jersey',1600, 1.00, NULL),
+    ('AK','Alaska',1341, 1.35, 'Flights $600+ RT/13wk; groceries 2-3× Lower 48; limited transit. Nome FMR used.'),
+    ('HI','Hawaii',1800, 1.30, 'Flights $800+ RT; groceries 1.8× mainland; island isolation premium.'),
+    ('OR','Oregon',1350, 1.00, NULL),
+    ('NV','Nevada',1300, 1.00, NULL),
+    ('CO','Colorado',1550, 1.00, NULL),
+    ('OH','Ohio',900, 1.00, NULL),
+    ('NC','North Carolina',1100, 1.00, NULL),
+    ('MI','Michigan',950, 1.00, NULL),
+    ('VA','Virginia',1400, 1.00, NULL),
+    ('SC','South Carolina',1050, 1.00, NULL),
+    ('ID','Idaho',900, 1.00, NULL)
 ON CONFLICT (state_abbr) DO NOTHING;
