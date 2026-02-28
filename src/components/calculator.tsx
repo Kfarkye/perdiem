@@ -189,6 +189,7 @@ function buildPrefillUrl(p: {
   facility?: string;
   plan?: InsurancePlan;
   ins?: number | null;
+  rent?: number | null;
 }) {
   const url = new URL(window.location.href);
   const sp = url.searchParams;
@@ -208,6 +209,8 @@ function buildPrefillUrl(p: {
   sp.set("plan", p.plan ?? "none");
   if (typeof p.ins === "number" && p.ins >= 0) sp.set("ins", String(p.ins));
   else sp.delete("ins");
+  if (typeof p.rent === "number" && p.rent > 0) sp.set("rent", String(p.rent));
+  else sp.delete("rent");
   url.search = sp.toString();
   return url.toString();
 }
@@ -573,6 +576,7 @@ export default function Calculator() {
   const [scriptCopied, setScriptCopied] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showAdvisories, setShowAdvisories] = useState(false);
+  const [rentOverride, setRentOverride] = useState("");
 
   // When specialty changes, update hours to default for that profession
   const handleSpecialtyChange = useCallback((val: string) => {
@@ -594,6 +598,7 @@ export default function Calculator() {
     const ins = sp.get("ins") ?? "";
     const spec = sp.get("specialty") ?? "RN";
     const h = parseInt(sp.get("hours") ?? "", 10);
+    const rent = sp.get("rent") ?? "";
 
     if (z.length === 5) setZip(z);
     if (!Number.isNaN(g) && g > 0) setGross(String(g));
@@ -601,6 +606,7 @@ export default function Calculator() {
     if (fac) setFacilityName(fac);
     if (["none", "single", "family", "aca", "private"].includes(p)) setPlan(p);
     if (ins) setInsuranceOverride(ins.replace(/[^\d.]/g, ""));
+    if (rent) setRentOverride(rent.replace(/[^\d.]/g, ""));
     if (spec) setSpecialty(spec);
     if (!Number.isNaN(h) && h >= 8 && h <= 80) setHours(h);
     else setHours(getDefaultHours(spec));
@@ -698,6 +704,9 @@ export default function Calculator() {
     const insNum = insuranceOverride.trim()
       ? parseFloat(insuranceOverride)
       : null;
+    const rentNum = rentOverride.trim()
+      ? parseFloat(rentOverride)
+      : null;
     const url = buildPrefillUrl({
       zip,
       gross: grossNum,
@@ -707,9 +716,10 @@ export default function Calculator() {
       facility: facilityName.trim(),
       plan,
       ins: Number.isFinite(insNum as number) ? insNum : null,
+      rent: Number.isFinite(rentNum as number) ? rentNum : null,
     });
     window.history.replaceState({}, "", url);
-  }, [zip, gross, specialty, hours, agency, facilityName, plan, insuranceOverride]);
+  }, [zip, gross, specialty, hours, agency, facilityName, plan, insuranceOverride, rentOverride]);
 
   // ━━━ HANDLERS ━━━
 
@@ -795,6 +805,9 @@ export default function Calculator() {
     const insNum = insuranceOverride.trim()
       ? parseFloat(insuranceOverride)
       : null;
+    const rentNum = rentOverride.trim()
+      ? parseFloat(rentOverride)
+      : null;
     const url = buildPrefillUrl({
       zip: result.zip,
       gross: result.weeklyGross,
@@ -804,10 +817,11 @@ export default function Calculator() {
       facility: facilityName.trim(),
       plan,
       ins: Number.isFinite(insNum as number) ? insNum : null,
+      rent: Number.isFinite(rentNum as number) ? rentNum : null,
     });
     const specLabel =
       SPECIALTIES.find((s) => s.value === specialty)?.label ?? specialty;
-    const text = `PerDiem.fyi — ${specLabel} in ${result.zip} · $${result.weeklyGross}/wk · ${result.pctOfMax}% GSA · net after insurance $${result.netAfterInsuranceWeekly}/wk`;
+    const text = `PerDiem.fyi — ${specLabel} in ${result.zip} · $${result.weeklyGross}/wk gross · Keep $${Math.round(result.netAfterInsuranceWeekly - ((result.zoriRent ?? result.housing1br) / 4.33))}/wk after rent`;
     if (navigator.share) {
       await navigator.share({ title: "PerDiem.fyi", text, url });
     } else {
@@ -825,6 +839,7 @@ export default function Calculator() {
     setFacilityName("");
     setPlan("none");
     setInsuranceOverride("");
+    setRentOverride("");
     setGsaPreview(null);
     setResult(null);
     setError(null);
@@ -885,7 +900,7 @@ export default function Calculator() {
                 color: T.text,
               }}
             >
-              Is this a good pay package?
+              What will you keep after housing?
             </div>
             <div
               style={{
@@ -896,7 +911,7 @@ export default function Calculator() {
                 lineHeight: 1.6,
               }}
             >
-              Calculate your true take-home pay after taxes and insurance.
+              Plug in your assignment ZIP. See what&apos;s left after rent, taxes, and insurance.
             </div>
           </div>
           {/* Spacer between intro and form */}
@@ -1289,6 +1304,72 @@ export default function Calculator() {
             )}
           </Card>
 
+          {/* ━━━ HOUSING COST (optional override) ━━━ */}
+          <Card>
+            <MicroLabel>Monthly rent (optional)</MicroLabel>
+            <div
+              style={{
+                fontFamily: f.sans,
+                fontSize: "12px",
+                color: T.textSecondary,
+                lineHeight: 1.5,
+                marginTop: "6px",
+                marginBottom: "8px",
+              }}
+            >
+              Know what you&apos;ll pay for housing? Enter it here. Otherwise we&apos;ll estimate from federal data.
+            </div>
+            <div style={{ position: "relative" }}>
+              <span
+                style={{
+                  position: "absolute",
+                  left: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontFamily: f.mono,
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  color: T.textTertiary,
+                }}
+              >
+                $
+              </span>
+              <input
+                value={rentOverride}
+                onChange={(e) =>
+                  setRentOverride(e.target.value.replace(/[^\d.]/g, ""))
+                }
+                onKeyDown={(e) => e.key === "Enter" && handleOfferSubmit()}
+                placeholder="0"
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box" as const,
+                  fontFamily: f.mono,
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  padding: "12px 12px 12px 34px",
+                  borderRadius: "10px",
+                  border: `2px solid ${rentOverride.trim() ? T.borderFocus : T.border}`,
+                  background: T.surface,
+                  color: T.text,
+                  outline: "none",
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontFamily: f.sans,
+                fontSize: "11px",
+                color: T.textTertiary,
+                marginTop: "4px",
+                display: "block",
+              }}
+            >
+              Renting from a friend? Splitting a place? Put your real number.
+            </span>
+          </Card>
+
           {/* ━━━ GROSS + SUBMIT ━━━ */}
           <Card>
             <MicroLabel>Weekly gross offer</MicroLabel>
@@ -1355,12 +1436,12 @@ export default function Calculator() {
     );
   }
 
+
   // ━━━ STEP 2: RESULTS ━━━
   if (step === 2 && result) {
     const r = result;
     const gsaPctCapped = Math.min(r.pctOfMax, 100);
     const avgLocalRent = r.zoriRent ?? r.housing1br;
-    const surplusMonthly = Math.round(r.stipendMonthlyEst - avgLocalRent);
     const ficaWeekly = Math.round(r.taxableWeekly * 0.0765);
     const federalWeekly = Math.round(r.taxEstimateWeekly - ficaWeekly);
     const otBase = Math.round(r.taxableHourly * 1.5);
@@ -1372,33 +1453,81 @@ export default function Calculator() {
     const housingStipendWeekly = Math.round(gsaHousingWeekly * stipendRatio);
     const mealsStipendWeekly = Math.round(r.stipendWeekly - housingStipendWeekly);
 
+    // ── THE SPREAD ──
+    // Nurse-provided rent overrides the federal estimate
+    const rentOverrideNum = rentOverride.trim() ? parseFloat(rentOverride) : null;
+    const actualRentMonthly = (Number.isFinite(rentOverrideNum as number) && (rentOverrideNum as number) > 0)
+      ? (rentOverrideNum as number)
+      : avgLocalRent;
+    const rentWeekly = Math.round(actualRentMonthly / 4.33);
+    const rentIsOverride = Number.isFinite(rentOverrideNum as number) && (rentOverrideNum as number) > 0;
+
+    // What you keep after rent: net weekly (post-tax, post-insurance) minus housing
+    const keepAfterRent = Math.round(r.netAfterInsuranceWeekly - rentWeekly);
+    const keepAfterRent13wk = keepAfterRent * 13;
+
     // ── Ive palette ──
     const C = {
       black: "#000000",
       muted: "#8E8E93",
+      secondary: "#6B6B6B",
       hairline: "#E5E5EA",
       bg: "#FFFFFF",
+      positive: "#34C759",
+      positiveBg: "#F0FDF4",
+      negative: "#FF3B30",
+      negativeBg: "#FEF2F2",
     };
     const font = "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif";
 
-    // shared row style
-    const rowStyle = (opts?: { bold?: boolean }): React.CSSProperties => ({
+    const rowStyle = (opts?: { bold?: boolean; muted?: boolean }): React.CSSProperties => ({
       display: "flex",
       justifyContent: "space-between",
       alignItems: "baseline",
       fontFamily: font,
       fontSize: "15px",
       fontWeight: opts?.bold ? 500 : 400,
-      color: C.black,
+      color: opts?.muted ? C.muted : C.black,
       lineHeight: "1.6",
     });
 
-    const breathe: React.CSSProperties = { height: "80px" };
     const hairline: React.CSSProperties = {
       height: "1px",
       background: C.hairline,
       width: "100%",
     };
+
+    const sectionToggle = (
+      label: string,
+      open: boolean,
+      onToggle: () => void,
+    ): React.ReactElement => (
+      <button
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          padding: "18px 0",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: font,
+          fontSize: "15px",
+          fontWeight: 400,
+          color: C.black,
+          textAlign: "left" as const,
+          minHeight: "44px",
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ fontSize: "18px", color: C.muted }}>{open ? "−" : "+"}</span>
+      </button>
+    );
+
+    // Classify the offer for the intelligence section
+    const offerClassification = classifyOffer(r.pctOfMax, r.taxableHourly);
 
     return (
       <div
@@ -1419,7 +1548,7 @@ export default function Calculator() {
               top: 0,
               zIndex: 10,
               background: C.bg,
-              padding: "12px 0 24px",
+              padding: "12px 0 16px",
             }}
           >
             <button
@@ -1435,8 +1564,20 @@ export default function Calculator() {
             </button>
           </div>
 
+          {/* ── Location context ── */}
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "13px",
+              color: C.muted,
+              marginBottom: "24px",
+            }}
+          >
+            {r.city ? `${r.city}, ` : ""}{r.state} · {r.zip} · {r.hours}hr/wk
+          </div>
+
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-          {/* ZONE 1: PROFIT SIGNALS                */}
+          {/* THE SPREAD — What you keep after rent */}
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
 
           <div
@@ -1450,113 +1591,175 @@ export default function Calculator() {
               marginBottom: "8px",
             }}
           >
-            Take-home
+            What you keep after rent
           </div>
           <div
             style={{
               fontFamily: font,
-              fontSize: "48px",
+              fontSize: "54px",
               fontWeight: 500,
-              color: C.black,
-              letterSpacing: "-0.02em",
+              color: keepAfterRent >= 0 ? C.black : C.negative,
+              letterSpacing: "-0.03em",
               lineHeight: 1,
             }}
           >
-            ${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}
-            <span style={{ fontSize: "20px", fontWeight: 400, color: C.muted, marginLeft: "6px" }}>
+            {keepAfterRent >= 0 ? "" : "−"}${Math.abs(keepAfterRent).toLocaleString()}
+            <span
+              style={{
+                fontSize: "20px",
+                fontWeight: 400,
+                color: C.muted,
+                marginLeft: "6px",
+              }}
+            >
               / wk
             </span>
           </div>
 
-          <div style={{ height: "48px" }} />
+          {/* 13-week total */}
+          <div
+            style={{
+              fontFamily: font,
+              fontSize: "14px",
+              color: C.secondary,
+              marginTop: "12px",
+            }}
+          >
+            ${Math.abs(keepAfterRent13wk).toLocaleString()} over 13 weeks
+          </div>
 
+          {/* ━━━ THE EQUATION ━━━ */}
+          <div
+            style={{
+              marginTop: "40px",
+              padding: "20px 0",
+              borderTop: `1px solid ${C.hairline}`,
+              borderBottom: `1px solid ${C.hairline}`,
+            }}
+          >
+            <div style={rowStyle({ bold: true })}>
+              <span>Gross pay</span>
+              <span>${r.weeklyGross.toLocaleString()}/wk</span>
+            </div>
+            <div style={rowStyle()}>
+              <span>− Taxes</span>
+              <span>${Math.round(r.taxEstimateWeekly).toLocaleString()}</span>
+            </div>
+            {r.insuranceWeeklyMid > 0 && (
+              <div style={rowStyle()}>
+                <span>− Insurance</span>
+                <span>${Math.round(r.insuranceWeeklyMid).toLocaleString()}</span>
+              </div>
+            )}
+            <div style={rowStyle()}>
+              <span>
+                − Rent
+                {rentIsOverride && (
+                  <span style={{ fontSize: "11px", color: C.muted, marginLeft: "4px" }}>
+                    (your number)
+                  </span>
+                )}
+              </span>
+              <span>${rentWeekly.toLocaleString()}</span>
+            </div>
+            <div style={{ height: "8px" }} />
+            <div style={rowStyle({ bold: true })}>
+              <span style={{ fontWeight: 600 }}>You keep</span>
+              <span style={{ fontWeight: 600, color: keepAfterRent >= 0 ? C.black : C.negative }}>
+                ${keepAfterRent.toLocaleString()}/wk
+              </span>
+            </div>
+          </div>
+
+          {/* ── Rent source note ── */}
           <div
             style={{
               fontFamily: font,
               fontSize: "11px",
-              fontWeight: 500,
               color: C.muted,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
-              marginBottom: "8px",
+              lineHeight: 1.5,
+              padding: "8px 0 0",
             }}
           >
-            Monthly pocketed
-          </div>
-          <div
-            style={{
-              fontFamily: font,
-              fontSize: "48px",
-              fontWeight: 500,
-              color: C.black,
-              letterSpacing: "-0.02em",
-              lineHeight: 1,
-            }}
-          >
-            {surplusMonthly >= 0 ? "+" : "−"}${Math.abs(surplusMonthly).toLocaleString()}
+            {rentIsOverride
+              ? `Using your rent: $${Math.round(rentOverrideNum as number).toLocaleString()}/mo. Federal estimate: $${avgLocalRent.toLocaleString()}/mo.`
+              : `Rent estimate: $${avgLocalRent.toLocaleString()}/mo (${r.zoriRent ? "Zillow ZORI" : r.hudSource}). Adjust in the form for your actual rent.`}
           </div>
 
+          {/* ── Spacer ── */}
           <div style={{ height: "48px" }} />
 
-          <div
-            style={{
-              fontFamily: font,
-              fontSize: "11px",
-              fontWeight: 500,
-              color: C.muted,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
-              marginBottom: "8px",
-            }}
-          >
-            Stipend utilization
-          </div>
-          <div
-            style={{
-              fontFamily: font,
-              fontSize: "48px",
-              fontWeight: 500,
-              color: C.black,
-              letterSpacing: "-0.02em",
-              lineHeight: 1,
-            }}
-          >
-            {gsaPctCapped}%
-          </div>
-
-          {/* ── Breathing Zone 1 ── */}
-          <div style={breathe} />
-
-          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-          {/* ZONE 2: THE MATH                      */}
-          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-
+          {/* ━━━ STIPEND INTELLIGENCE ━━━ */}
           <div style={hairline} />
-          <button
-            onClick={() => setShowBreakdown((p) => !p)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              padding: "18px 0",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: font,
-              fontSize: "16px",
-              fontWeight: 400,
-              color: C.black,
-              textAlign: "left" as const,
-              minHeight: "44px",
-            }}
-          >
-            <span>Pay & tax breakdown</span>
-            <span style={{ fontSize: "18px", color: C.muted }}>{showBreakdown ? "−" : "+"}</span>
-          </button>
+          {sectionToggle("Stipend intelligence", showBreakdown, () => setShowBreakdown((p) => !p))}
           <div
             style={{
-              maxHeight: showBreakdown ? "600px" : "0px",
+              maxHeight: showBreakdown ? "500px" : "0px",
+              overflow: "hidden",
+              transition: "max-height 0.3s ease-in-out",
+            }}
+          >
+            <div style={{ paddingBottom: "24px" }}>
+              {/* Offer assessment pill */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontFamily: font,
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: offerClassification.color,
+                  background: offerClassification.bg,
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  marginBottom: "16px",
+                }}
+              >
+                {offerClassification.label} — {offerClassification.pill}
+              </div>
+
+              <div style={rowStyle()}>
+                <span>Your stipend</span>
+                <span>${r.stipendWeekly.toLocaleString()}/wk</span>
+              </div>
+              <div style={rowStyle()}>
+                <span>GSA ceiling (FY{r.fiscalYear})</span>
+                <span>${r.gsaWeeklyMax.toLocaleString()}/wk</span>
+              </div>
+              <div style={rowStyle({ bold: true })}>
+                <span>Utilization</span>
+                <span>{gsaPctCapped}% of max</span>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ marginTop: "8px" }}>
+                <ProgressBar value={gsaPctCapped} max={100} color={offerClassification.color} />
+              </div>
+
+              {r.deltaToTypicalWeekly > 0 && (
+                <div
+                  style={{
+                    fontFamily: font,
+                    fontSize: "12px",
+                    color: C.secondary,
+                    lineHeight: 1.5,
+                    marginTop: "12px",
+                  }}
+                >
+                  Typical offers land at {r.typicalBand} of GSA.
+                  At 90%, your stipend would be ${r.targetStipendWeekly.toLocaleString()}/wk — that&apos;s ${Math.round(r.deltaToTypicalWeekly).toLocaleString()}/wk more.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ━━━ PAY & TAX BREAKDOWN ━━━ */}
+          <div style={hairline} />
+          {sectionToggle("Pay & tax breakdown", showAdvisories, () => setShowAdvisories((p) => !p))}
+          <div
+            style={{
+              maxHeight: showAdvisories ? "600px" : "0px",
               overflow: "hidden",
               transition: "max-height 0.3s ease-in-out",
             }}
@@ -1567,8 +1770,8 @@ export default function Calculator() {
                 <span>${r.weeklyGross.toLocaleString()}</span>
               </div>
               <div style={rowStyle()}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  Stipend
+                <span>
+                  Stipend (tax-free)
                   <button
                     onClick={(e) => { e.stopPropagation(); setScriptCopied((p) => !p); }}
                     style={{
@@ -1580,6 +1783,7 @@ export default function Calculator() {
                       fontSize: "13px",
                       color: C.muted,
                       lineHeight: 1,
+                      marginLeft: "4px",
                     }}
                     title="Assumes duplicated expenses to qualify for tax-free stipends."
                   >
@@ -1588,14 +1792,14 @@ export default function Calculator() {
                 </span>
                 <span>${r.stipendWeekly.toLocaleString()}</span>
               </div>
-              {/* ⓘ stipend split + disclaimer */}
+              {/* Stipend split detail */}
               {scriptCopied && (
-                <div style={{ padding: "6px 0 8px" }}>
-                  <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
+                <div style={{ padding: "4px 0 8px" }}>
+                  <div style={{ ...rowStyle({ muted: true }), fontSize: "13px", paddingLeft: "16px" }}>
                     <span>Housing</span>
                     <span>${housingStipendWeekly.toLocaleString()}</span>
                   </div>
-                  <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
+                  <div style={{ ...rowStyle({ muted: true }), fontSize: "13px", paddingLeft: "16px" }}>
                     <span>Meals</span>
                     <span>${mealsStipendWeekly.toLocaleString()}</span>
                   </div>
@@ -1605,7 +1809,7 @@ export default function Calculator() {
                       fontSize: "11px",
                       color: C.muted,
                       lineHeight: 1.5,
-                      padding: "6px 0 0 16px",
+                      padding: "4px 0 0 16px",
                     }}
                   >
                     Assumes duplicated expenses to qualify for tax-free stipends.
@@ -1613,64 +1817,57 @@ export default function Calculator() {
                 </div>
               )}
               <div style={rowStyle()}>
-                <span>Taxable</span>
-                <span>${r.taxableWeekly.toLocaleString()}</span>
+                <span>Taxable base</span>
+                <span>${r.taxableWeekly.toLocaleString()} (${r.taxableHourly}/hr)</span>
               </div>
 
               <div style={{ height: "12px" }} />
 
               <div style={rowStyle()}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  Taxes
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowAdvisories((p) => !p); }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                      fontFamily: font,
-                      fontSize: "13px",
-                      color: C.muted,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {showAdvisories ? "−" : "+"}
-                  </button>
-                </span>
-                <span>–${Math.round(r.taxEstimateWeekly).toLocaleString()}</span>
+                <span>FICA (7.65%)</span>
+                <span>–${ficaWeekly.toLocaleString()}</span>
               </div>
-              {/* Nested tax details */}
+              <div style={rowStyle()}>
+                <span>Federal (eff.)</span>
+                <span>–${Math.max(federalWeekly, 0).toLocaleString()}</span>
+              </div>
+              <div style={rowStyle()}>
+                <span>State</span>
+                <span>–$0</span>
+              </div>
+
+              <div style={{ height: "12px" }} />
+
+              <div style={rowStyle({ bold: true })}>
+                <span>Net weekly</span>
+                <span>${Math.round(r.netWeekly).toLocaleString()}</span>
+              </div>
+              {r.insuranceWeeklyMid > 0 && (
+                <div style={rowStyle()}>
+                  <span>Insurance</span>
+                  <span>–${Math.round(r.insuranceWeeklyMid).toLocaleString()}</span>
+                </div>
+              )}
+              <div style={rowStyle({ bold: true })}>
+                <span>Net after insurance</span>
+                <span>${Math.round(r.netAfterInsuranceWeekly).toLocaleString()}</span>
+              </div>
+
               <div
                 style={{
-                  maxHeight: showAdvisories ? "200px" : "0px",
-                  overflow: "hidden",
-                  transition: "max-height 0.25s ease-in-out",
+                  fontFamily: font,
+                  fontSize: "11px",
+                  color: C.muted,
+                  lineHeight: 1.5,
+                  marginTop: "8px",
                 }}
               >
-                <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
-                  <span>FICA (7.65%)</span>
-                  <span>–${ficaWeekly}</span>
-                </div>
-                <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
-                  <span>Federal (eff.)</span>
-                  <span>–${Math.max(federalWeekly, 0)}</span>
-                </div>
-                <div style={{ ...rowStyle(), color: C.muted, fontSize: "13px", paddingLeft: "16px" }}>
-                  <span>State</span>
-                  <span>–$0</span>
-                </div>
+                Tax estimate: {r.taxMethod}. Not a tax calculation — consult a CPA.
               </div>
             </div>
           </div>
 
-          {/* ── Breathing Zone 2 ── */}
-          <div style={breathe} />
-
-          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-          {/* ZONE 3: DECISION INTELLIGENCE          */}
-          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-
+          {/* ━━━ CONTRACT RISKS ━━━ */}
           <div style={hairline} />
           <div
             style={{
@@ -1683,43 +1880,40 @@ export default function Calculator() {
               padding: "18px 0 12px",
             }}
           >
-            Contract risks
+            Watch out for
           </div>
 
-          {/* Housing risk */}
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
-              Housing risk
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ fontFamily: font, fontSize: "14px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
+              Housing timing
             </div>
-            <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.5 }}>
-              Avoid long-term leases until week 2.
-            </div>
-          </div>
-
-          {/* Overtime ceiling */}
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
-              Overtime ceiling
-            </div>
-            <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.5 }}>
-              ${r.taxableHourly}/hr base → statutory OT ≈ ${otBase}/hr. Travelers routinely negotiate 2–3× above this floor.
+            <div style={{ fontFamily: font, fontSize: "13px", color: C.secondary, lineHeight: 1.5 }}>
+              Avoid signing a long-term lease until you&apos;re into week 2 and know the contract is solid.
             </div>
           </div>
 
-          {/* Guaranteed hours */}
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ fontFamily: font, fontSize: "14px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
+              Overtime floor
+            </div>
+            <div style={{ fontFamily: font, fontSize: "13px", color: C.secondary, lineHeight: 1.5 }}>
+              Your taxable base is ${r.taxableHourly}/hr, so statutory OT starts at ${otBase}/hr. Most travelers negotiate well above this.
+            </div>
+          </div>
+
           <div style={{ marginBottom: "0" }}>
-            <div style={{ fontFamily: font, fontSize: "15px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
+            <div style={{ fontFamily: font, fontSize: "14px", fontWeight: 500, color: C.black, marginBottom: "2px" }}>
               Guaranteed hours
             </div>
-            <div style={{ fontFamily: font, fontSize: "14px", color: C.muted, lineHeight: 1.5 }}>
-              Ensure stipends aren&#39;t reduced on low census.
+            <div style={{ fontFamily: font, fontSize: "13px", color: C.secondary, lineHeight: 1.5 }}>
+              Confirm your stipend isn&apos;t reduced when the unit is low census. Get it in writing.
             </div>
           </div>
 
-          {/* ── Breathing Zone 3 ── */}
-          <div style={breathe} />
+          {/* ── Spacer ── */}
+          <div style={{ height: "48px" }} />
 
-          {/* ━━━ SHARE ANALYSIS ━━━ */}
+          {/* ━━━ SHARE ━━━ */}
           <div style={hairline} />
           <button
             onClick={handleShareLink}
@@ -1733,14 +1927,14 @@ export default function Calculator() {
               border: "none",
               cursor: "pointer",
               fontFamily: font,
-              fontSize: "16px",
+              fontSize: "15px",
               fontWeight: 400,
               color: C.black,
               textAlign: "left" as const,
               minHeight: "44px",
             }}
           >
-            <span>Share analysis</span>
+            <span>Share this breakdown</span>
             <span style={{ fontSize: "16px", color: C.muted }}>↗</span>
           </button>
           <div style={hairline} />
@@ -1777,9 +1971,10 @@ export default function Calculator() {
           >
             Per diem rates from{" "}
             <a href="https://www.gsa.gov/travel/plan-book/per-diem-rates" style={{ color: C.muted }} target="_blank" rel="noopener noreferrer">GSA.gov</a>
-            . Housing from{" "}
+            {" "}(FY{r.fiscalYear}). Housing from{" "}
             <a href="https://www.huduser.gov/portal/datasets/fmr.html" style={{ color: C.muted }} target="_blank" rel="noopener noreferrer">HUD FMR</a>
-            . Pay data protected under NLRA Section 7.
+            {r.zoriRent ? " + Zillow ZORI" : ""}.
+            Pay data protected under NLRA Section 7.
           </footer>
         </div>
       </div>
